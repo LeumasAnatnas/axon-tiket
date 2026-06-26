@@ -279,15 +279,17 @@ const [eqSearch, setEqSearch] = useState("");
 const [selHist, setSelHist] = useState(null);
 const [histResps, setHistResps] = useState([]);
 const [histRespLd, setHistRespLd] = useState(false);
+const [reinsps, setReinsps] = useState([]);
 
 const load = async () => {
 try {
-const [eq, cl, ch] = await Promise.all([
+const [eq, cl, ch, ri] = await Promise.all([
 sb.q("equipment", tk, "active=eq.true&select=*&order=prefix"),
 sb.q("classes", tk, "active=eq.true&select=*&order=name"),
 sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&order=submitted_at.desc&limit=20`),
+sb.q("checklists", tk, `driver_id=eq.${profile.id}&reinspection_requested=eq.true&select=id,equipment_id,form_id,reinspection_notes`),
 ]);
-setEqs(eq); setCls(cl); setHist(ch);
+setEqs(eq); setCls(cl); setHist(ch); setReinsps(ri||[]);
 } catch (e) { msg("Erro: " + e.message, "error"); }
 finally { setLd(false); }
 };
@@ -357,6 +359,18 @@ return <>
 {v === "home" && <>
 <h2 style={{ fontSize: 20, marginBottom: 4 }}>Olá, {profile.name.split(" ")[0]} 👋</h2>
 <p style={{ color: T.t2, fontSize: 14, marginBottom: 16 }}>Selecione um equipamento para iniciar</p>
+{/* Alertas de re-inspeção */}
+{reinsps.length > 0 && <div style={{ marginBottom:16 }}>
+<div style={{ fontSize:12, fontWeight:700, color:T.y, textTransform:"uppercase", letterSpacing:.5, marginBottom:8 }}>🔄 Re-inspeções solicitadas</div>
+{reinsps.map(ri => {
+const eq = eqs.find(e => e.id === ri.equipment_id);
+if (!eq) return null;
+return <div key={ri.id} className="card" onClick={() => pickEq(eq)} style={{ cursor:"pointer", borderColor:T.y+"60", marginBottom:8 }}>
+<div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+<div><div style={{ fontWeight:700, fontSize:14, fontFamily:"'JetBrains Mono'" }}>{eq.prefix} <span style={{ color:T.t3 }}>— {eq.plate}</span></div>
+<div style={{ fontSize:12, color:T.y, marginTop:4 }}>⚠ {ri.reinspection_notes}</div></div>
+<span style={{ color:T.y, fontSize:20 }}>→</span></div></div>;
+})}</div>}
 {eqs.length === 0 ? <div className="card" style={{ textAlign: "center", color: T.t3, padding: 40 }}>Nenhum equipamento cadastrado. Aguarde o gestor cadastrar.</div>
 : <>
 {/* Filtro por classe */}
@@ -564,7 +578,17 @@ setCardResps(r||[]);
 finally { setHistLd(false); }
 };
 
-const closeCard = () => { setSelCard(null); setMoveTo(null); setConcl(""); setCardHistory([]); setCardResps([]); };
+const closeCard = () => { setSelCard(null); setMoveTo(null); setConcl(""); setCardHistory([]); setCardResps([]); setReinspNotes(""); setShowReinsp(false); };
+const [reinspNotes, setReinspNotes] = useState("");
+const [showReinsp, setShowReinsp] = useState(false);
+
+const requestReinsp = async (id) => {
+if (!reinspNotes.trim()) return msg("Informe o motivo da re-inspeção", "error");
+try {
+await sb.rpc("request_reinspection", { p_checklist_id: id, p_performed_by: profile.id, p_performed_by_name: profile.name, p_notes: reinspNotes.trim() }, tk);
+msg("Re-inspeção solicitada!"); closeCard(); load();
+} catch (e) { msg("Erro: " + e.message, "error"); }
+};
 
 const move = async (id, status) => {
 if (status === "atendido" && !concl.trim()) return msg("Justificativa obrigatória", "error");
@@ -638,6 +662,7 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 <span style={{ fontSize:9, color:T.t3 }}>{cl.driver_name}</span>
 <span style={{ fontSize:8, color:T.t3, fontFamily:"'JetBrains Mono'" }}>{relDt(cl.submitted_at)} {fmtTm(cl.submitted_at)}</span></div>
 {cl.assigned_to_name && <div style={{ marginTop:2, fontSize:9, color:T.ac }}>👤 {cl.assigned_to_name}</div>}
+{cl.reinspection_requested && <div style={{ marginTop:2, fontSize:9, color:T.y, fontWeight:600 }}>🔄 Re-inspeção solicitada</div>}
 </div>; })}
 {hiddenN > 0 && !expanded && <button onClick={() => setExpandCol(p=>({...p,[col.id]:true}))} style={{ width:"100%", padding:"7px 0", border:`1px dashed ${T.bd}`, borderRadius:8, background:"transparent", color:T.ac, fontSize:10, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans'", marginTop:2 }}>↓ Ver mais {hiddenN}</button>}
 {expanded && allCards.length > MAX_VIS && <button onClick={() => setExpandCol(p=>({...p,[col.id]:false}))} style={{ width:"100%", padding:"5px 0", border:"none", borderRadius:8, background:"transparent", color:T.t3, fontSize:9, cursor:"pointer", fontFamily:"'DM Sans'", marginTop:2 }}>↑ Recolher</button>}
@@ -712,6 +737,17 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
       </div>)
 }
 </div>
+
+{/* Re-inspeção */}
+{!selCard.reinspection_requested && <div style={{ marginTop:16 }}>
+<button className="btn bg bs" style={{ color:T.y, borderColor:T.y+"40", width:"100%" }} onClick={()=>setShowReinsp(!showReinsp)}>🔄 Solicitar Re-inspeção ao motorista</button>
+{showReinsp && <div className="fi" style={{ marginTop:8 }}>
+<textarea className="inp" rows={2} placeholder="O que precisa ser re-inspecionado..." value={reinspNotes} onChange={e=>setReinspNotes(e.target.value)} style={{ resize:"vertical", fontSize:12 }} />
+<button className="btn bp bw" style={{ marginTop:8, background:T.y }} onClick={()=>requestReinsp(selCard.id)}>Confirmar re-inspeção</button></div>}
+</div>}
+{selCard.reinspection_requested && <div style={{ marginTop:16, padding:"10px 14px", background:T.y+"15", border:`1px solid ${T.y}40`, borderRadius:8 }}>
+<div style={{ fontSize:11, fontWeight:700, color:T.y }}>🔄 Re-inspeção solicitada</div>
+<div style={{ fontSize:12, color:T.t2, marginTop:4 }}>{selCard.reinspection_notes}</div></div>}
 
 <div style={{ marginTop:20, fontSize:12, fontWeight:700, color:T.t2, textTransform:"uppercase", marginBottom:8 }}>Mover para</div>
 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
