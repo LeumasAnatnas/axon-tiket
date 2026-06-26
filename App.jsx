@@ -337,6 +337,14 @@ for (const i of items) {
 }
 await sb.ins("checklist_responses", resps, tk);
 await sb.ins("checklist_history", { checklist_id: ck.id, action: "Checklist enviado", performed_by: profile.id, performed_by_name: profile.name }, tk);
+// Auto-fechar re-inspeções antigas do mesmo equipamento
+const oldRi = reinsps.filter(r => r.equipment_id === selEq.id);
+for (const ri of oldRi) {
+  try {
+    await sb.upd("checklists", { status:"atendido", reinspection_requested:false, conclusion_text:"Substituído por re-inspeção", concluded_at: new Date().toISOString() }, { id:ri.id }, tk);
+    await sb.ins("checklist_history", { checklist_id:ri.id, action:"Fechado automaticamente — re-inspeção realizada", performed_by:profile.id, performed_by_name:profile.name }, tk);
+  } catch {}
+}
 msg("Checklist enviado com sucesso!"); sv("home"); load();
 } catch (e) { msg("Erro: " + e.message, "error"); }
 finally { setSending(false); }
@@ -527,6 +535,7 @@ const fmtTm = (iso) => new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",
 const kanFiltered = useMemo(() => {
 const now = new Date();
 return kan.filter(c => {
+if (c.reinspection_requested) return false;
 const df = Math.floor((now - new Date(c.submitted_at)) / 864e5);
 if (period==="today"&&df>0) return false;
 if (period==="7d"&&df>7) return false;
