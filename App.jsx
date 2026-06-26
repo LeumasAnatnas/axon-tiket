@@ -367,6 +367,7 @@ const [moveTo, setMoveTo] = useState(null);
 const [concl, setConcl] = useState("");
 // FIX #2: estado para histórico do card selecionado
 const [cardHistory, setCardHistory] = useState([]);
+const [cardResps, setCardResps] = useState([]);
 const [histLd, setHistLd] = useState(false);
 
 const load = async () => {
@@ -385,14 +386,19 @@ useEffect(() => { load(); }, []);
 const loadCardHistory = async (id) => {
 setHistLd(true);
 setCardHistory([]);
+setCardResps([]);
 try {
-const h = await sb.q("checklist_history", tk, `checklist_id=eq.${id}&order=created_at.asc&select=*`);
+const [h, r] = await Promise.all([
+sb.q("checklist_history", tk, `checklist_id=eq.${id}&order=created_at.asc&select=*`),
+sb.q("checklist_responses", tk, `checklist_id=eq.${id}&select=answer,form_items(label,sort_order)`)
+]);
 setCardHistory(h);
-} catch(e) { setCardHistory([]); }
+setCardResps((r||[]).sort((a,b) => (a.form_items?.sort_order||0) - (b.form_items?.sort_order||0)));
+} catch(e) { setCardHistory([]); setCardResps([]); }
 finally { setHistLd(false); }
 };
 
-const closeCard = () => { setSelCard(null); setMoveTo(null); setConcl(""); setCardHistory([]); };
+const closeCard = () => { setSelCard(null); setMoveTo(null); setConcl(""); setCardHistory([]); setCardResps([]); };
 
 const move = async (id, status) => {
 if (status === "atendido" && !concl.trim()) return msg("Justificativa obrigatória", "error");
@@ -461,6 +467,22 @@ return <div key={col.id} className="kc">
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Motorista</div><div style={{ fontWeight:600 }}>{selCard.driver_name}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Formulário</div><div>{selCard.form_name}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Itens</div><div>{selCard.total_items} total — <span style={{ color:T.r }}>{selCard.problem_count} com problema</span></div></div>
+
+{/* Itens individuais do checklist */}
+{cardResps.length > 0 && <div style={{ marginBottom:12 }}>
+<div style={{ fontSize:12, fontWeight:700, color:T.t2, textTransform:"uppercase", letterSpacing:.5, marginBottom:8 }}>Respostas</div>
+{cardResps.map((r, i) => {
+const ans = r.answer;
+const color = ans === "ok" ? T.g : ans === "problem" ? T.r : T.y;
+const icon = ans === "ok" ? "✓" : ans === "problem" ? "✕" : "—";
+const lbl = ans === "ok" ? "Sem problemas" : ans === "problem" ? "Com problema" : "Não possui";
+return <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.bd}` }}>
+<span style={{ color, fontWeight:700, fontSize:14, minWidth:20 }}>{icon}</span>
+<span style={{ flex:1, fontSize:13 }}>{r.form_items?.label || "Item"}</span>
+<span className="badge" style={{ background:color+"20", color, fontSize:9 }}>{lbl}</span>
+</div>;
+})}
+</div>}
 
 {/* FIX #2: Histórico de movimentações */}
 <div style={{ marginTop:20, marginBottom:8 }}>
