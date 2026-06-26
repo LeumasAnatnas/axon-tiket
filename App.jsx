@@ -274,6 +274,11 @@ const [resp, setResp] = useState({});
 const [photos, setPhotos] = useState({});
 const [notes, setNotes] = useState({});
 const [sending, setSending] = useState(false);
+const [filtCls, setFiltCls] = useState("");
+const [eqSearch, setEqSearch] = useState("");
+const [selHist, setSelHist] = useState(null);
+const [histResps, setHistResps] = useState([]);
+const [histRespLd, setHistRespLd] = useState(false);
 
 const load = async () => {
 try {
@@ -335,6 +340,13 @@ msg("Checklist enviado com sucesso!"); sv("home"); load();
 finally { setSending(false); }
 };
 
+const loadHistDetail = async (cl) => {
+setSelHist(cl); setHistRespLd(true); setHistResps([]);
+try { const r = await sb.q("v_checklist_items", tk, `checklist_id=eq.${cl.id}&select=*&order=sort_order`); setHistResps(r||[]); }
+catch { setHistResps([]); }
+finally { setHistRespLd(false); }
+};
+
 return <>
 <div className="topbar"><div className="logo">AXON TIKET</div>
 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -344,15 +356,28 @@ return <>
 {ld ? <div style={{ textAlign: "center", padding: 40 }}><div className="sp" /></div> : <>
 {v === "home" && <>
 <h2 style={{ fontSize: 20, marginBottom: 4 }}>Olá, {profile.name.split(" ")[0]} 👋</h2>
-<p style={{ color: T.t2, fontSize: 14, marginBottom: 24 }}>Selecione um equipamento para iniciar</p>
+<p style={{ color: T.t2, fontSize: 14, marginBottom: 16 }}>Selecione um equipamento para iniciar</p>
 {eqs.length === 0 ? <div className="card" style={{ textAlign: "center", color: T.t3, padding: 40 }}>Nenhum equipamento cadastrado. Aguarde o gestor cadastrar.</div>
-: <div style={{ display: "grid", gap: 10 }}>{eqs.map(eq => {
+: <>
+{/* Filtro por classe */}
+<div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:10 }}>
+<button onClick={()=>setFiltCls("")} style={{ padding:"6px 14px", border:"none", borderRadius:20, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans'", background:!filtCls?T.ac:"transparent", color:!filtCls?T.bg:T.t2, border:`1px solid ${!filtCls?T.ac:T.bd}` }}>Todos</button>
+{cls.map(c=><button key={c.id} onClick={()=>setFiltCls(c.id)} style={{ padding:"6px 14px", border:`1px solid ${filtCls===c.id?T.ac:T.bd}`, borderRadius:20, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans'", background:filtCls===c.id?T.ac:"transparent", color:filtCls===c.id?T.bg:T.t2 }}>{c.name}</button>)}
+</div>
+{/* Busca */}
+<input className="inp" placeholder="🔍 Buscar por prefixo ou placa..." value={eqSearch} onChange={e=>setEqSearch(e.target.value)} style={{ marginBottom:12, fontSize:13 }} />
+{/* Grid de equipamentos */}
+<div style={{ display: "grid", gap: 10 }}>{eqs.filter(eq => {
+if (filtCls && eq.class_id !== filtCls) return false;
+if (eqSearch) { const s=eqSearch.toLowerCase(); if(!`${eq.prefix} ${eq.plate}`.toLowerCase().includes(s)) return false; }
+return true;
+}).map(eq => {
 const c = cls.find(x => x.id === eq.class_id);
 return <div key={eq.id} className="card" onClick={() => pickEq(eq)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 <div><div style={{ fontWeight: 700, fontSize: 16, fontFamily: "'JetBrains Mono'" }}>{eq.prefix}<span style={{ color: T.t3 }}> — {eq.plate}</span></div>
 <div style={{ fontSize: 12, color: T.t2, marginTop: 4 }}>{c?.name}</div></div>
 <span style={{ color: T.ac, fontSize: 20 }}>→</span></div>;
-})}</div>}
+})}</div></>}
 </>}
 
 {v === "m_pickf" && selEq && <>
@@ -404,15 +429,49 @@ style={{ border:`2px solid ${a===val?col:T.bd}`, background:a===val?col+"15":"tr
 {hist.length === 0 ? <div className="card" style={{ textAlign:"center", color:T.t3, padding:40 }}>Nenhum checklist enviado</div>
 : hist.map(cl => {
 const col = KAN.find(k => k.id === cl.status);
-return <div key={cl.id} className="card" style={{ marginBottom: 10 }}>
+return <div key={cl.id} className="card" style={{ marginBottom: 10, cursor:"pointer" }} onClick={()=>loadHistDetail(cl)}>
 <div style={{ display:"flex", justifyContent:"space-between" }}>
 <div><div style={{ fontWeight:700, fontSize:14 }}>{cl.form_name}</div>
-<div style={{ fontSize:12, color:T.t2, marginTop:2 }}>{cl.equipment_prefix} — {new Date(cl.submitted_at).toLocaleDateString("pt-BR")}</div></div>
-<span className="badge" style={{ background:col?.color+"20", color:col?.color }}>{col?.icon} {col?.label}</span></div>
+<div style={{ fontSize:12, color:T.t2, marginTop:2 }}>{cl.equipment_prefix} — {cl.equipment_plate}</div>
+<div style={{ fontSize:11, color:T.t3, marginTop:2 }}>{new Date(cl.submitted_at).toLocaleDateString("pt-BR")} às {new Date(cl.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div></div>
+<div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+<span className="badge" style={{ background:col?.color+"20", color:col?.color }}>{col?.icon} {col?.label}</span>
+<span style={{ fontSize:10, color:T.ac }}>ver detalhes →</span></div></div>
 {cl.reinspection_requested && <div style={{ marginTop:8, fontSize:12, color:T.y }}>⚠ Re-inspeção: {cl.reinspection_notes}</div>}
 {cl.conclusion_text && <div style={{ marginTop:8, fontSize:12, color:T.g }}>✓ {cl.conclusion_text}</div>}
 </div>;
 })}
+
+{/* Modal detalhe do histórico */}
+{selHist && <div style={{ position:"fixed", inset:0, background:"#000a", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setSelHist(null)}>
+<div className="card fi" style={{ maxWidth:500, width:"100%", maxHeight:"85vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+<div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
+<h3 style={{ fontSize:16 }}>Detalhes do Checklist</h3>
+<button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={()=>setSelHist(null)}>✕</button></div>
+<div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Equipamento</div>
+<div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{selHist.equipment_prefix} — {selHist.equipment_plate}</div></div>
+<div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Formulário</div><div style={{ fontWeight:600 }}>{selHist.form_name}</div></div>
+<div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Enviado em</div>
+<div>{new Date(selHist.submitted_at).toLocaleDateString("pt-BR")} às {new Date(selHist.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div></div>
+{selHist.conclusion_text && <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Conclusão</div><div style={{ color:T.g }}>✓ {selHist.conclusion_text}</div></div>}
+{selHist.reinspection_requested && <div style={{ marginBottom:8, color:T.y }}>⚠ Re-inspeção solicitada: {selHist.reinspection_notes}</div>}
+<div style={{ fontSize:12, fontWeight:700, color:T.t2, textTransform:"uppercase", letterSpacing:.5, marginTop:12, marginBottom:8 }}>Respostas</div>
+{histRespLd ? <div style={{ textAlign:"center", padding:12 }}><span className="sp" style={{width:16,height:16}}/></div>
+: histResps.length === 0 ? <div style={{ fontSize:12, color:T.t3 }}>Nenhuma resposta encontrada</div>
+: histResps.map((r,i) => {
+const ans=r.answer, color=ans==="ok"?T.g:ans==="problem"?T.r:T.y;
+const icon=ans==="ok"?"✓":ans==="problem"?"✕":"—";
+const lbl=ans==="ok"?"Sem problemas":ans==="problem"?"Com problema":"Não possui";
+return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }}>
+<div style={{ display:"flex", alignItems:"center", gap:8 }}>
+<span style={{ color, fontWeight:700, fontSize:14, minWidth:20 }}>{icon}</span>
+<span style={{ flex:1, fontSize:13 }}>{r.label||"Item"}</span>
+<span className="badge" style={{ background:color+"20", color, fontSize:9 }}>{lbl}</span></div>
+{r.notes && <div style={{ marginTop:3, marginLeft:28, fontSize:11, color:T.y, fontStyle:"italic" }}>💬 {r.notes}</div>}
+{r.photo_url && <a href={r.photo_url} target="_blank" rel="noopener noreferrer" style={{ display:"inline-block", marginTop:3, marginLeft:28 }}>
+<img src={r.photo_url} alt="Foto" style={{ width:60, height:60, objectFit:"cover", borderRadius:6, border:`1px solid ${T.bd}` }} /></a>}
+</div>; })}
+</div></div>}
 </>}
 {v === "m_pw" && <PwChange msg={msg} />}
 </>}
