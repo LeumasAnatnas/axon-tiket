@@ -165,7 +165,10 @@ select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+x
 .nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:${T.c1}ee;backdrop-filter:blur(12px);border-top:1px solid ${T.bd};padding:8px 0 12px;display:flex;justify-content:space-around}
 .ni{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:${T.t3};cursor:pointer;padding:4px 12px;border:none;background:none;font-family:'DM Sans'}
 .ni.on{color:${T.ac}}
-.pg{padding:16px 20px 100px;max-width:800px;margin:0 auto}
+.pg{padding:16px 20px 100px;max-width:1400px;margin:0 auto}
+.kpig{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.filtrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+@media(max-width:640px){.kpig{grid-template-columns:repeat(2,1fr)}.filtrow .finp{width:100%;min-width:0!important}}
 .fi{animation:fi .3s ease}@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .toast{position:fixed;top:20px;right:20px;z-index:200;padding:14px 20px;border-radius:10px;font-weight:600;font-size:14px;animation:si .3s ease,so .3s ease 2.7s forwards;box-shadow:0 8px 24px #00000060}
 @keyframes si{from{opacity:0;transform:translateX(40px)}}@keyframes so{to{opacity:0;transform:translateX(40px)}}
@@ -176,7 +179,7 @@ select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+x
 .kb{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding-bottom:20px}
 @media(max-width:900px){.kb{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.kb{grid-template-columns:1fr}}
-.kc{min-width:260px;flex:1;background:${T.c2};border-radius:12px;padding:12px}
+.kc{background:${T.c2};border-radius:12px;padding:12px;min-height:200px}
 .kch{display:flex;align-items:center;gap:8px;padding:8px;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.5px}
 .kk{background:${T.c1};border:1px solid ${T.bd};border-radius:10px;padding:14px;cursor:pointer;transition:all .2s;margin-bottom:8px}
 .kk:hover{border-color:${T.ac}50;transform:translateY(-2px)}
@@ -463,9 +466,9 @@ return true;
 
 const kpis = useMemo(() => {
 const t=kanFiltered.filter(c=>c.status==="triagem").length;
-const p=kanFiltered.filter(c=>c.status==="processado").length;
-const e=kanFiltered.filter(c=>c.status==="em_atendimento").length;
-return { triagem:t, pendentes:t+p+e, comProblema:kanFiltered.filter(c=>c.problem_count>0).length, atendidos:kanFiltered.filter(c=>c.status==="atendido").length };
+const ea=kanFiltered.filter(c=>c.status==="em_atendimento").length;
+const tProb=kanFiltered.filter(c=>c.status==="triagem"&&c.problem_count>0).length;
+return { triagem:t, emAtendimento:ea, triagemProblema:tProb, atendidos:kanFiltered.filter(c=>c.status==="atendido").length };
 }, [kanFiltered]);
 
 const hasKFilter = filtEq||filtDr||filtUr||kSearch;
@@ -532,22 +535,22 @@ return <>
 <span style={{ fontSize:11, color:T.t3 }}>{kanFiltered.length} de {kan.length}</span>
 </div>
 {/* KPIs */}
-<div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:10 }}>
-{[["📋","Triagem",kpis.triagem,T.y],["🔄","Pendentes",kpis.pendentes,"#3b82f6"],["⚠️","Com Problemas",kpis.comProblema,T.r],["✅","Atendidos",kpis.atendidos,T.g]].map(([ic,lb,val,co],i) =>
+<div className="kpig">
+{[["📋","Triagem",kpis.triagem,T.y],["🔧","Em Atendimento",kpis.emAtendimento,"#3b82f6"],["⚠️","Triagem c/ Problemas",kpis.triagemProblema,T.r],["✅","Atendidos",kpis.atendidos,T.g]].map(([ic,lb,val,co],i) =>
 <div key={i} style={{ background:T.c1, border:`1px solid ${T.bd}`, borderRadius:10, padding:"10px 12px", display:"flex", alignItems:"center", gap:8 }}>
 <span style={{ fontSize:20 }}>{ic}</span>
 <div><div style={{ fontSize:20, fontWeight:700, fontFamily:"'JetBrains Mono'", color:co }}>{val}</div>
 <div style={{ fontSize:9, color:T.t2, textTransform:"uppercase", letterSpacing:.3 }}>{lb}</div></div></div>)}
 </div>
 {/* Filters */}
-<div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:10 }}>
+<div className="filtrow">
 <input placeholder="🔍 Buscar..." value={kSearch} onChange={e=>setKSearch(e.target.value)}
-style={{ padding:"7px 12px", background:T.c2, border:`1px solid ${T.bd}`, borderRadius:8, color:T.tx, fontSize:12, width:200, outline:"none", fontFamily:"'DM Sans'" }} />
-<select className="inp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtEq} onChange={e=>setFiltEq(e.target.value)}>
+className="inp finp" style={{ padding:"7px 12px", fontSize:12, width:200, minWidth:160 }} />
+<select className="inp finp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtEq} onChange={e=>setFiltEq(e.target.value)}>
 <option value="">Equipamento</option>{[...new Set(kan.map(c=>c.equipment_prefix))].sort().map(v=><option key={v} value={v}>{v}</option>)}</select>
-<select className="inp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtDr} onChange={e=>setFiltDr(e.target.value)}>
+<select className="inp finp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtDr} onChange={e=>setFiltDr(e.target.value)}>
 <option value="">Motorista</option>{[...new Set(kan.map(c=>c.driver_name))].sort().map(v=><option key={v} value={v}>{v}</option>)}</select>
-<select className="inp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtUr} onChange={e=>setFiltUr(e.target.value)}>
+<select className="inp finp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtUr} onChange={e=>setFiltUr(e.target.value)}>
 <option value="">Urgência</option><option value="problem">⚠ Com problemas</option><option value="ok">✓ Sem problemas</option></select>
 {hasKFilter && <button className="btn bg bs" style={{ color:T.r, fontSize:10 }} onClick={clearKFilters}>✕ Limpar</button>}
 </div>
