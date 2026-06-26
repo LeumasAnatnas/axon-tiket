@@ -579,6 +579,7 @@ return <><div style={{ display:"flex", gap:8, marginBottom:20 }}>
 function FormMgr({ tk, cls, reload, msg, pid }) {
 const [forms, setForms] = useState([]); const [nn,setNn]=useState(""); const [nc,setNc]=useState("");
 const [ef,setEf]=useState(null); const [its,setIts]=useState([]); const [nil,setNil]=useState(""); const [nip,setNip]=useState("optional");
+const [eid,setEid]=useState(null); const [eil,setEil]=useState(""); const [eip,setEip]=useState("");
 useEffect(() => { loadF(); }, []);
 const loadF = async () => setForms(await sb.q("forms",tk,"active=eq.true&select=*&order=name"));
 const addF = async () => { if(!nn.trim()||!nc) return; try{await sb.ins("forms",{name:nn.trim(),class_id:nc,created_by:pid},tk); setNn(""); msg("Formulário criado"); loadF();}catch(e){msg(e.message,"error");} };
@@ -586,6 +587,7 @@ const delF = async (f) => { if(!window.confirm(`Desativar formulário "${f.name}
 const openF = async f => { setEf(f); setIts(await sb.q("form_items",tk,`form_id=eq.${f.id}&active=eq.true&select=*&order=sort_order`)); };
 const addI = async () => { if(!nil.trim()||!ef) return; try{await sb.ins("form_items",{form_id:ef.id,label:nil.trim(),photo_rule:nip,sort_order:its.length},tk); setNil(""); msg("Verificação adicionada"); openF(ef);}catch(e){msg(e.message,"error");} };
 const delI = async (it) => { if(!window.confirm(`Remover "${it.label}"?`)) return; try{await sb.upd("form_items",{active:false},{id:it.id},tk); msg("Item removido"); openF(ef);}catch(e){msg(e.message,"error");} };
+const saveI = async (id) => { if(!eil.trim()) return; try{await sb.upd("form_items",{label:eil.trim(),photo_rule:eip},{id},tk); setEid(null); msg("Verificação atualizada"); openF(ef);}catch(e){msg(e.message,"error");} };
 
 return <><div className="card" style={{ marginBottom:20 }}>
 <div style={{ fontWeight:600, marginBottom:12 }}>Novo Formulário</div>
@@ -603,12 +605,22 @@ return <div key={cl.id} style={{ marginBottom:24 }}>
 <button className="btn bg bs" onClick={() => ef?.id===f.id?setEf(null):openF(f)}>{ef?.id===f.id?"✕":"✎"}</button>
 <button className="btn bg bs" style={{ color:T.r }} onClick={()=>delF(f)}>🗑</button></div></div>
 {ef?.id===f.id && <div className="fi">
-{its.map((it,idx) => <div key={it.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 0", borderBottom:`1px solid ${T.bd}` }}>
+{its.map((it,idx) => <div key={it.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 0", borderBottom:`1px solid ${T.bd}`, flexWrap:"wrap" }}>
+{eid===it.id ? <>
+<span style={{ fontSize:12, color:T.t3, fontFamily:"'JetBrains Mono'", minWidth:24 }}>#{idx+1}</span>
+<input className="inp" style={{ flex:2, minWidth:140, padding:"6px 10px", fontSize:12 }} value={eil} onChange={e=>setEil(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveI(it.id)} />
+<select className="inp" style={{ flex:1, minWidth:120, padding:"6px 10px", fontSize:12 }} value={eip} onChange={e=>setEip(e.target.value)}>
+<option value="mandatory">📷 Obrigatória</option><option value="optional">📷 Opcional</option><option value="none">Sem foto</option></select>
+<button className="btn bp bs" style={{ padding:"4px 8px", fontSize:10 }} onClick={()=>saveI(it.id)}>✓</button>
+<button className="btn bg bs" style={{ padding:"4px 8px", fontSize:10 }} onClick={()=>setEid(null)}>✕</button>
+</> : <>
 <span style={{ fontSize:12, color:T.t3, fontFamily:"'JetBrains Mono'", minWidth:24 }}>#{idx+1}</span>
 <span style={{ flex:1, fontSize:13 }}>{it.label}</span>
 <span className="badge" style={{ background:(PHC[it.photo_rule]||T.t3)+"20", color:PHC[it.photo_rule]||T.t3, fontSize:9 }}>
 {it.photo_rule==="mandatory"?"📷 Obrig.":it.photo_rule==="optional"?"📷 Opc.":"Sem foto"}</span>
-<button className="btn bg bs" style={{ color:T.r, padding:"2px 6px", fontSize:10 }} onClick={()=>delI(it)}>✕</button></div>)}
+<button className="btn bg bs" style={{ padding:"2px 6px", fontSize:10 }} onClick={()=>{setEid(it.id);setEil(it.label);setEip(it.photo_rule||"none");}}>✎</button>
+<button className="btn bg bs" style={{ color:T.r, padding:"2px 6px", fontSize:10 }} onClick={()=>delI(it)}>✕</button>
+</>}</div>)}
 <div style={{ marginTop:12, display:"flex", gap:8, flexWrap:"wrap" }}>
 <input className="inp" placeholder="Nova verificação" style={{ flex:2, minWidth:180 }} value={nil} onChange={e=>setNil(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addI()} />
 <select className="inp" style={{ flex:1, minWidth:130 }} value={nip} onChange={e=>setNip(e.target.value)}>
