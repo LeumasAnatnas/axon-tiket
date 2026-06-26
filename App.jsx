@@ -17,6 +17,11 @@ if (!r.ok) { const e = await r.json(); throw new Error(e.error_description || e.
 return r.json();
 },
 async signOut(tk) { await fetch(`${SB_URL}/auth/v1/logout`, { method: "POST", headers: this.h(tk) }).catch(() => {}); },
+async refresh(rt) {
+const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, { method: "POST", headers: this.h(), body: JSON.stringify({ refresh_token: rt }) });
+if (!r.ok) throw new Error("Sessão expirada");
+return r.json();
+},
 async updatePassword(tk, pw) {
 const r = await fetch(`${SB_URL}/auth/v1/user`, { method: "PUT", headers: this.h(tk), body: JSON.stringify({ password: pw }) });
 if (!r.ok) throw new Error("Erro ao alterar senha");
@@ -66,9 +71,24 @@ const [loading, setLoading] = useState(true);
 
 useEffect(() => {
 const s = localStorage.getItem("axon_s");
-if (s) { try { const p = JSON.parse(s); setSession(p); loadProfile(p.tk, p.uid); } catch { setLoading(false); } }
+if (s) { try { const p = JSON.parse(s); initSession(p); } catch { setLoading(false); } }
 else setLoading(false);
 }, []);
+
+const initSession = async (p) => {
+try {
+// tenta refresh para garantir token válido
+const d = await sb.refresh(p.rt);
+const ns = { tk: d.access_token, rt: d.refresh_token, uid: d.user.id };
+localStorage.setItem("axon_s", JSON.stringify(ns));
+setSession(ns);
+loadProfile(ns.tk, ns.uid);
+} catch {
+// refresh falhou, tenta com token existente
+setSession(p);
+loadProfile(p.tk, p.uid);
+}
+};
 
 const loadProfile = async (tk, uid) => {
 try {
@@ -78,6 +98,21 @@ else throw new Error("Perfil não encontrado");
 } catch { localStorage.removeItem("axon_s"); setSession(null); }
 finally { setLoading(false); }
 };
+
+// FIX #9: auto-refresh JWT a cada 50min
+useEffect(() => {
+if (!session?.rt) return;
+const doRefresh = async () => {
+try {
+const d = await sb.refresh(session.rt);
+const s = { tk: d.access_token, rt: d.refresh_token, uid: d.user.id };
+localStorage.setItem("axon_s", JSON.stringify(s));
+setSession(s);
+} catch { localStorage.removeItem("axon_s"); setSession(null); setProfile(null); }
+};
+const id = setInterval(doRefresh, 50 * 60 * 1000);
+return () => clearInterval(id);
+}, [session?.rt]);
 
 const login = async (email, pw) => {
 const d = await sb.signIn(email, pw);
