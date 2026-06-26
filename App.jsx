@@ -524,11 +524,24 @@ return <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding
 // ==================== CRUD ====================
 function ClassMgr({ tk, cls, reload, msg }) {
 const [n, setN] = useState("");
+const [editId, setEditId] = useState(null);
+const [editName, setEditName] = useState("");
 const add = async () => { if (!n.trim()) return; try { await sb.ins("classes",{name:n.trim()},tk); setN(""); msg("Classe criada"); reload(); } catch(e){msg(e.message,"error");} };
+const save = async (id) => { if(!editName.trim()) return; try { await sb.upd("classes",{name:editName.trim()},{id},tk); setEditId(null); msg("Classe atualizada"); reload(); } catch(e){msg(e.message,"error");} };
+const del = async (id,name) => { if(!window.confirm(`Desativar a classe "${name}"?`)) return; try { await sb.upd("classes",{active:false},{id},tk); msg("Classe removida"); reload(); } catch(e){msg(e.message,"error");} };
 return <><div style={{ display:"flex", gap:8, marginBottom:20 }}>
 <input className="inp" placeholder="Nome da nova classe" value={n} onChange={e => setN(e.target.value)} onKeyDown={e => e.key==="Enter"&&add()} />
 <button className="btn bp" onClick={add}>+</button></div>
-<div style={{ display:"grid", gap:8 }}>{cls.map(c => <div key={c.id} className="card"><div style={{ fontWeight:600 }}>{c.name}</div><div style={{ fontSize:12, color:T.t2 }}>{c.description}</div></div>)}</div></>;
+<div style={{ display:"grid", gap:8 }}>{cls.map(c => <div key={c.id} className="card" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+{editId===c.id ? <div style={{ display:"flex", gap:8, flex:1 }}>
+<input className="inp" value={editName} onChange={e=>setEditName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save(c.id)} />
+<button className="btn bp bs" onClick={()=>save(c.id)}>✓</button>
+<button className="btn bg bs" onClick={()=>setEditId(null)}>✕</button></div>
+: <><div style={{ fontWeight:600 }}>{c.name}</div>
+<div style={{ display:"flex", gap:4 }}>
+<button className="btn bg bs" onClick={()=>{setEditId(c.id);setEditName(c.name);}}>✎</button>
+<button className="btn bg bs" style={{ color:T.r }} onClick={()=>del(c.id,c.name)}>🗑</button></div></>}
+</div>)}</div></>;
 }
 
 function FormMgr({ tk, cls, reload, msg, pid }) {
@@ -537,8 +550,10 @@ const [ef,setEf]=useState(null); const [its,setIts]=useState([]); const [nil,set
 useEffect(() => { loadF(); }, []);
 const loadF = async () => setForms(await sb.q("forms",tk,"active=eq.true&select=*&order=name"));
 const addF = async () => { if(!nn.trim()||!nc) return; try{await sb.ins("forms",{name:nn.trim(),class_id:nc,created_by:pid},tk); setNn(""); msg("Formulário criado"); loadF();}catch(e){msg(e.message,"error");} };
+const delF = async (f) => { if(!window.confirm(`Desativar formulário "${f.name}"?`)) return; try{await sb.upd("forms",{active:false},{id:f.id},tk); if(ef?.id===f.id) setEf(null); msg("Formulário removido"); loadF();}catch(e){msg(e.message,"error");} };
 const openF = async f => { setEf(f); setIts(await sb.q("form_items",tk,`form_id=eq.${f.id}&active=eq.true&select=*&order=sort_order`)); };
 const addI = async () => { if(!nil.trim()||!ef) return; try{await sb.ins("form_items",{form_id:ef.id,label:nil.trim(),photo_rule:nip,sort_order:its.length},tk); setNil(""); msg("Verificação adicionada"); openF(ef);}catch(e){msg(e.message,"error");} };
+const delI = async (it) => { if(!window.confirm(`Remover "${it.label}"?`)) return; try{await sb.upd("form_items",{active:false},{id:it.id},tk); msg("Item removido"); openF(ef);}catch(e){msg(e.message,"error");} };
 
 return <><div className="card" style={{ marginBottom:20 }}>
 <div style={{ fontWeight:600, marginBottom:12 }}>Novo Formulário</div>
@@ -552,13 +567,16 @@ return <div key={cl.id} style={{ marginBottom:24 }}>
 {cf.map(f => <div key={f.id} className="card" style={{ marginBottom:8 }}>
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:ef?.id===f.id?16:0 }}>
 <div style={{ fontWeight:600 }}>{f.name}</div>
-<button className="btn bg bs" onClick={() => ef?.id===f.id?setEf(null):openF(f)}>{ef?.id===f.id?"✕":"✎"}</button></div>
+<div style={{ display:"flex", gap:4 }}>
+<button className="btn bg bs" onClick={() => ef?.id===f.id?setEf(null):openF(f)}>{ef?.id===f.id?"✕":"✎"}</button>
+<button className="btn bg bs" style={{ color:T.r }} onClick={()=>delF(f)}>🗑</button></div></div>
 {ef?.id===f.id && <div className="fi">
 {its.map((it,idx) => <div key={it.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 0", borderBottom:`1px solid ${T.bd}` }}>
 <span style={{ fontSize:12, color:T.t3, fontFamily:"'JetBrains Mono'", minWidth:24 }}>#{idx+1}</span>
 <span style={{ flex:1, fontSize:13 }}>{it.label}</span>
 <span className="badge" style={{ background:(PHC[it.photo_rule]||T.t3)+"20", color:PHC[it.photo_rule]||T.t3, fontSize:9 }}>
-{it.photo_rule==="mandatory"?"📷 Obrig.":it.photo_rule==="optional"?"📷 Opc.":"Sem foto"}</span></div>)}
+{it.photo_rule==="mandatory"?"📷 Obrig.":it.photo_rule==="optional"?"📷 Opc.":"Sem foto"}</span>
+<button className="btn bg bs" style={{ color:T.r, padding:"2px 6px", fontSize:10 }} onClick={()=>delI(it)}>✕</button></div>)}
 <div style={{ marginTop:12, display:"flex", gap:8, flexWrap:"wrap" }}>
 <input className="inp" placeholder="Nova verificação" style={{ flex:2, minWidth:180 }} value={nil} onChange={e=>setNil(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addI()} />
 <select className="inp" style={{ flex:1, minWidth:130 }} value={nip} onChange={e=>setNip(e.target.value)}>
@@ -589,15 +607,20 @@ return <><div className="card" style={{ marginBottom:20 }}>
 <input className="inp" type="password" placeholder="Senha" style={{ flex:1, minWidth:110 }} value={p} onChange={x=>setP(x.target.value)} />
 <button className="btn bp" onClick={add}>+</button></div></div>
 <div style={{ display:"grid", gap:8 }}>{us.map(u => <div key={u.id} className="card" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-<div><div style={{ fontWeight:600 }}>{u.name}</div><div style={{ fontSize:12, color:T.t2 }}>{u.email}</div></div></div>)}</div></>;
+<div><div style={{ fontWeight:600 }}>{u.name}</div><div style={{ fontSize:12, color:T.t2 }}>{u.email}</div></div>
+<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar motorista "${u.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:u.id},tk);msg("Motorista desativado");loadU();}catch(err){msg(err.message,"error");}}}>🗑</button>
+</div>)}</div></>;
 }
 
 function EquipMgr({ tk, cls, reload, msg }) {
 const [eqs,setEqs]=useState([]); const [px,setPx]=useState(""); const [pl,setPl]=useState(""); const [ci,setCi]=useState("");
+const [editId,setEditId]=useState(null); const [ePx,setEPx]=useState(""); const [ePl,setEPl]=useState(""); const [eCi,setECi]=useState("");
 useEffect(()=>{loadE();},[]);
 const loadE = async () => setEqs(await sb.q("equipment",tk,"active=eq.true&select=*&order=prefix"));
 const add = async () => { if(!px.trim()||!pl.trim()||!ci) return msg("Preencha tudo","error");
 try{await sb.ins("equipment",{prefix:px.trim(),plate:pl.trim().toUpperCase(),class_id:ci},tk); setPx("");setPl("");setCi(""); msg("Equipamento cadastrado!"); loadE(); reload();}catch(e){msg(e.message,"error");} };
+const save = async (id) => { if(!ePx.trim()||!ePl.trim()||!eCi) return; try{await sb.upd("equipment",{prefix:ePx.trim(),plate:ePl.trim().toUpperCase(),class_id:eCi},{id},tk); setEditId(null); msg("Equipamento atualizado"); loadE(); reload();}catch(e){msg(e.message,"error");} };
+const del = async (eq) => { if(!window.confirm(`Desativar "${eq.prefix} — ${eq.plate}"?`)) return; try{await sb.upd("equipment",{active:false},{id:eq.id},tk); msg("Equipamento removido"); loadE(); reload();}catch(e){msg(e.message,"error");} };
 return <><div className="card" style={{ marginBottom:20 }}>
 <div style={{ fontWeight:600, marginBottom:12 }}>Cadastrar Equipamento</div>
 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -608,7 +631,17 @@ return <><div className="card" style={{ marginBottom:20 }}>
 <button className="btn bp" onClick={add}>+</button></div></div>
 <div style={{ display:"grid", gap:8 }}>{eqs.map(eq => { const c=cls.find(x=>x.id===eq.class_id);
 return <div key={eq.id} className="card" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-<div><div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{eq.prefix} — {eq.plate}</div><div style={{ fontSize:12, color:T.t2 }}>{c?.name}</div></div></div>;
+{editId===eq.id ? <div style={{ display:"flex", gap:6, flex:1, flexWrap:"wrap", alignItems:"center" }}>
+<input className="inp" style={{ flex:1, minWidth:100 }} value={ePx} onChange={e=>setEPx(e.target.value)} />
+<input className="inp" style={{ flex:1, minWidth:100 }} value={ePl} onChange={e=>setEPl(e.target.value)} />
+<select className="inp" style={{ flex:1, minWidth:120 }} value={eCi} onChange={e=>setECi(e.target.value)}>{cls.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+<button className="btn bp bs" onClick={()=>save(eq.id)}>✓</button>
+<button className="btn bg bs" onClick={()=>setEditId(null)}>✕</button></div>
+: <><div><div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{eq.prefix} — {eq.plate}</div><div style={{ fontSize:12, color:T.t2 }}>{c?.name}</div></div>
+<div style={{ display:"flex", gap:4 }}>
+<button className="btn bg bs" onClick={()=>{setEditId(eq.id);setEPx(eq.prefix);setEPl(eq.plate);setECi(eq.class_id);}}>✎</button>
+<button className="btn bg bs" style={{ color:T.r }} onClick={()=>del(eq)}>🗑</button></div></>}
+</div>;
 })}</div></>;
 }
 
