@@ -340,10 +340,7 @@ await sb.ins("checklist_history", { checklist_id: ck.id, action: "Checklist envi
 // Auto-fechar re-inspeções antigas do mesmo equipamento
 const oldRi = reinsps.filter(r => r.equipment_id === selEq.id);
 for (const ri of oldRi) {
-  try {
-    await sb.upd("checklists", { status:"atendido", reinspection_requested:false, conclusion_text:"Substituído por re-inspeção", concluded_at: new Date().toISOString() }, { id:ri.id }, tk);
-    await sb.ins("checklist_history", { checklist_id:ri.id, action:"Fechado automaticamente — re-inspeção realizada", performed_by:profile.id, performed_by_name:profile.name }, tk);
-  } catch {}
+  try { await sb.rpc("close_reinspection", { p_old_id: ri.id, p_performed_by: profile.id, p_performed_by_name: profile.name }, tk); } catch {}
 }
 msg("Checklist enviado com sucesso!"); sv("home"); load();
 } catch (e) { msg("Erro: " + e.message, "error"); }
