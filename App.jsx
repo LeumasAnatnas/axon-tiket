@@ -390,10 +390,10 @@ setCardResps([]);
 try {
 const [h, r] = await Promise.all([
 sb.q("checklist_history", tk, `checklist_id=eq.${id}&order=created_at.asc&select=*`),
-sb.q("checklist_responses", tk, `checklist_id=eq.${id}&select=answer,form_items(label,sort_order)`)
+sb.q("v_checklist_items", tk, `checklist_id=eq.${id}&select=*&order=sort_order`)
 ]);
 setCardHistory(h);
-setCardResps((r||[]).sort((a,b) => (a.form_items?.sort_order||0) - (b.form_items?.sort_order||0)));
+setCardResps(r||[]);
 } catch(e) { setCardHistory([]); setCardResps([]); }
 finally { setHistLd(false); }
 };
@@ -478,7 +478,7 @@ const icon = ans === "ok" ? "✓" : ans === "problem" ? "✕" : "—";
 const lbl = ans === "ok" ? "Sem problemas" : ans === "problem" ? "Com problema" : "Não possui";
 return <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.bd}` }}>
 <span style={{ color, fontWeight:700, fontSize:14, minWidth:20 }}>{icon}</span>
-<span style={{ flex:1, fontSize:13 }}>{r.form_items?.label || "Item"}</span>
+<span style={{ flex:1, fontSize:13 }}>{r.label || "Item"}</span>
 <span className="badge" style={{ background:color+"20", color, fontSize:9 }}>{lbl}</span>
 </div>;
 })}
