@@ -41,7 +41,8 @@ return r.json();
 async rpc(fn, params, tk) {
 const r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: this.h(tk), body: JSON.stringify(params) });
 if (!r.ok) { const e = await r.json(); throw new Error(e.message || "Erro na função"); }
-return r.json();
+const txt = await r.text();
+return txt ? JSON.parse(txt) : null;
 },
 // FIX #4: trocado /auth/v1/admin/users (requer service_role) por /auth/v1/signup (funciona com anon key)
 async createUser(email, password, meta) {
