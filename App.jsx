@@ -608,7 +608,9 @@ return <><div className="card" style={{ marginBottom:20 }}>
 <button className="btn bp" onClick={add}>+</button></div></div>
 <div style={{ display:"grid", gap:8 }}>{us.map(u => <div key={u.id} className="card" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
 <div><div style={{ fontWeight:600 }}>{u.name}</div><div style={{ fontSize:12, color:T.t2 }}>{u.email}</div></div>
-<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar motorista "${u.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:u.id},tk);msg("Motorista desativado");loadU();}catch(err){msg(err.message,"error");}}}>🗑</button>
+<div style={{ display:"flex", gap:4 }}>
+<button className="btn bg bs" onClick={async()=>{const pw=window.prompt(`Nova senha para ${u.name} (mín. 6 caracteres):`);if(!pw) return;try{await sb.rpc("reset_user_password",{target_user_id:u.id,new_password:pw},tk);msg("Senha resetada!");}catch(err){msg(err.message,"error");}}}>🔑</button>
+<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar motorista "${u.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:u.id},tk);msg("Motorista desativado");loadU();}catch(err){msg(err.message,"error");}}}>🗑</button></div>
 </div>)}</div></>;
 }
 
