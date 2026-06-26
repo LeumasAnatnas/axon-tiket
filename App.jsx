@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, createContext, useContext } from "react";
+import { useState, useEffect, useCallback, useMemo, createContext, useContext } from "react";
 
 // ==================== SUPABASE CONFIG ====================
 const SB_URL = "https://slappxegoqzcmkgtpieq.supabase.co";
@@ -173,7 +173,9 @@ select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+x
 @keyframes spin{to{transform:rotate(360deg)}}
 .tabs{display:flex;gap:4px;background:${T.c2};padding:4px;border-radius:10px;margin-bottom:20px}
 .tab{flex:1;padding:10px;border:none;border-radius:8px;background:transparent;color:${T.t2};font-weight:600;font-size:13px;cursor:pointer;font-family:'DM Sans'}.tab.on{background:${T.ac};color:${T.bg}}
-.kb{display:flex;gap:12px;overflow-x:auto;padding-bottom:20px}
+.kb{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding-bottom:20px}
+@media(max-width:900px){.kb{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.kb{grid-template-columns:1fr}}
 .kc{min-width:260px;flex:1;background:${T.c2};border-radius:12px;padding:12px}
 .kch{display:flex;align-items:center;gap:8px;padding:8px;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.5px}
 .kk{background:${T.c1};border:1px solid ${T.bd};border-radius:10px;padding:14px;cursor:pointer;transition:all .2s;margin-bottom:8px}
@@ -431,6 +433,43 @@ const [concl, setConcl] = useState("");
 const [cardHistory, setCardHistory] = useState([]);
 const [cardResps, setCardResps] = useState([]);
 const [histLd, setHistLd] = useState(false);
+// KANBAN V2: filtros e expansão
+const [period, setPeriod] = useState("7d");
+const [filtEq, setFiltEq] = useState("");
+const [filtDr, setFiltDr] = useState("");
+const [filtUr, setFiltUr] = useState("");
+const [kSearch, setKSearch] = useState("");
+const [expandCol, setExpandCol] = useState({});
+const MAX_VIS = 6;
+
+const relDt = (iso) => { const d=new Date(iso), now=new Date(), df=Math.floor((now-d)/864e5); return df===0?"Hoje":df===1?"Ontem":df<7?df+"d":d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}); };
+const fmtTm = (iso) => new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+
+const kanFiltered = useMemo(() => {
+const now = new Date();
+return kan.filter(c => {
+const df = Math.floor((now - new Date(c.submitted_at)) / 864e5);
+if (period==="today"&&df>0) return false;
+if (period==="7d"&&df>7) return false;
+if (period==="30d"&&df>30) return false;
+if (filtEq && c.equipment_prefix!==filtEq) return false;
+if (filtDr && c.driver_name!==filtDr) return false;
+if (filtUr==="problem" && c.problem_count===0) return false;
+if (filtUr==="ok" && c.problem_count>0) return false;
+if (kSearch) { const s=kSearch.toLowerCase(); if(!`${c.equipment_prefix} ${c.equipment_plate} ${c.driver_name} ${c.form_name}`.toLowerCase().includes(s)) return false; }
+return true;
+});
+}, [kan, period, filtEq, filtDr, filtUr, kSearch]);
+
+const kpis = useMemo(() => {
+const t=kanFiltered.filter(c=>c.status==="triagem").length;
+const p=kanFiltered.filter(c=>c.status==="processado").length;
+const e=kanFiltered.filter(c=>c.status==="em_atendimento").length;
+return { triagem:t, pendentes:t+p+e, comProblema:kanFiltered.filter(c=>c.problem_count>0).length, atendidos:kanFiltered.filter(c=>c.status==="atendido").length };
+}, [kanFiltered]);
+
+const hasKFilter = filtEq||filtDr||filtUr||kSearch;
+const clearKFilters = () => { setFiltEq("");setFiltDr("");setFiltUr("");setKSearch(""); };
 
 const load = async () => {
 try {
@@ -483,22 +522,61 @@ return <>
 <div className="pg fi">
 {ld ? <div style={{ textAlign:"center", padding:40 }}><div className="sp"/></div> : <>
 {v === "home" && <>
-<h2 style={{ fontSize:20, marginBottom:20 }}>Kanban de Manutenção</h2>
+{/* Title + Period tabs */}
+<div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:10 }}>
+<h2 style={{ fontSize:20, margin:0 }}>Kanban de Manutenção</h2>
+<div style={{ display:"flex", gap:2, background:T.c2, padding:3, borderRadius:8 }}>
+{[["today","Hoje"],["7d","7 dias"],["30d","30 dias"],["all","Todos"]].map(([id,lb]) =>
+<button key={id} onClick={()=>setPeriod(id)} style={{ padding:"5px 12px", border:"none", borderRadius:6, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans'", background:period===id?T.ac:"transparent", color:period===id?T.bg:T.t2 }}>{lb}</button>)}
+</div>
+<span style={{ fontSize:11, color:T.t3 }}>{kanFiltered.length} de {kan.length}</span>
+</div>
+{/* KPIs */}
+<div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:10 }}>
+{[["📋","Triagem",kpis.triagem,T.y],["🔄","Pendentes",kpis.pendentes,"#3b82f6"],["⚠️","Com Problemas",kpis.comProblema,T.r],["✅","Atendidos",kpis.atendidos,T.g]].map(([ic,lb,val,co],i) =>
+<div key={i} style={{ background:T.c1, border:`1px solid ${T.bd}`, borderRadius:10, padding:"10px 12px", display:"flex", alignItems:"center", gap:8 }}>
+<span style={{ fontSize:20 }}>{ic}</span>
+<div><div style={{ fontSize:20, fontWeight:700, fontFamily:"'JetBrains Mono'", color:co }}>{val}</div>
+<div style={{ fontSize:9, color:T.t2, textTransform:"uppercase", letterSpacing:.3 }}>{lb}</div></div></div>)}
+</div>
+{/* Filters */}
+<div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:10 }}>
+<input placeholder="🔍 Buscar..." value={kSearch} onChange={e=>setKSearch(e.target.value)}
+style={{ padding:"7px 12px", background:T.c2, border:`1px solid ${T.bd}`, borderRadius:8, color:T.tx, fontSize:12, width:200, outline:"none", fontFamily:"'DM Sans'" }} />
+<select className="inp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtEq} onChange={e=>setFiltEq(e.target.value)}>
+<option value="">Equipamento</option>{[...new Set(kan.map(c=>c.equipment_prefix))].sort().map(v=><option key={v} value={v}>{v}</option>)}</select>
+<select className="inp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtDr} onChange={e=>setFiltDr(e.target.value)}>
+<option value="">Motorista</option>{[...new Set(kan.map(c=>c.driver_name))].sort().map(v=><option key={v} value={v}>{v}</option>)}</select>
+<select className="inp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtUr} onChange={e=>setFiltUr(e.target.value)}>
+<option value="">Urgência</option><option value="problem">⚠ Com problemas</option><option value="ok">✓ Sem problemas</option></select>
+{hasKFilter && <button className="btn bg bs" style={{ color:T.r, fontSize:10 }} onClick={clearKFilters}>✕ Limpar</button>}
+</div>
+{/* Kanban Grid */}
 <div className="kb">{KAN.map(col => {
-const cards = kan.filter(c => c.status === col.id);
+const allCards = kanFiltered.filter(c => c.status === col.id);
+const probTotal = allCards.reduce((s,c) => s + c.problem_count, 0);
+const expanded = expandCol[col.id];
+const visCards = expanded ? allCards : allCards.slice(0, MAX_VIS);
+const hiddenN = allCards.length - MAX_VIS;
 return <div key={col.id} className="kc">
 <div className="kch"><span className="dot" style={{ background:col.color }}/><span style={{ color:col.color }}>{col.label}</span>
-<span style={{ marginLeft:"auto", fontSize:12, color:T.t3 }}>{cards.length}</span></div>
-{cards.map(cl => <div key={cl.id} className="kk" onClick={() => { setSelCard(cl); setMoveTo(null); setConcl(""); loadCardHistory(cl.id); }}>
-<div style={{ fontWeight:700, fontSize:13, fontFamily:"'JetBrains Mono'" }}>{cl.equipment_prefix}</div>
-<div style={{ fontSize:12, color:T.t2, marginTop:2 }}>{cl.form_name}</div>
-<div style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginTop:6 }}>
-<span style={{ color:T.t3 }}>{cl.driver_name}</span>
-{cl.problem_count > 0 && <span style={{ color:T.r, fontWeight:600 }}>⚠ {cl.problem_count}</span>}</div>
-{cl.assigned_to_name && <div style={{ marginTop:4, fontSize:10, color:T.ac }}>👤 {cl.assigned_to_name}</div>}
-<div style={{ fontSize:10, color:T.t3, marginTop:4 }}>{new Date(cl.submitted_at).toLocaleString("pt-BR")}</div>
-</div>)}
-{!cards.length && <div style={{ padding:20, textAlign:"center", color:T.t3, fontSize:12 }}>Vazio</div>}
+<span style={{ marginLeft:"auto", fontSize:12, color:T.t3 }}>{allCards.length}</span>
+{probTotal > 0 && <span style={{ fontSize:10, color:T.r, fontWeight:700 }}>⚠{probTotal}</span>}</div>
+{visCards.map(cl => { const urg = cl.problem_count>=3?T.r:cl.problem_count>0?T.y:T.g;
+return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, padding:"8px 10px", marginBottom:5 }} onClick={() => { setSelCard(cl); setMoveTo(null); setConcl(""); loadCardHistory(cl.id); }}>
+<div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+<span style={{ fontWeight:700, fontSize:12, fontFamily:"'JetBrains Mono'" }}>{cl.equipment_prefix} <span style={{ color:T.t3, fontWeight:400, fontSize:10 }}>— {cl.equipment_plate}</span></span>
+{cl.problem_count > 0 ? <span style={{ fontSize:9, fontWeight:700, color:cl.problem_count>=3?T.r:T.y, background:(cl.problem_count>=3?T.r:T.y)+"15", padding:"1px 5px", borderRadius:10 }}>⚠ {cl.problem_count}</span>
+: <span style={{ fontSize:9, color:T.g }}>✓</span>}</div>
+<div style={{ fontSize:10, color:T.t2, marginTop:2 }}>{cl.form_name}</div>
+<div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:3 }}>
+<span style={{ fontSize:9, color:T.t3 }}>{cl.driver_name}</span>
+<span style={{ fontSize:8, color:T.t3, fontFamily:"'JetBrains Mono'" }}>{relDt(cl.submitted_at)} {fmtTm(cl.submitted_at)}</span></div>
+{cl.assigned_to_name && <div style={{ marginTop:2, fontSize:9, color:T.ac }}>👤 {cl.assigned_to_name}</div>}
+</div>; })}
+{hiddenN > 0 && !expanded && <button onClick={() => setExpandCol(p=>({...p,[col.id]:true}))} style={{ width:"100%", padding:"7px 0", border:`1px dashed ${T.bd}`, borderRadius:8, background:"transparent", color:T.ac, fontSize:10, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans'", marginTop:2 }}>↓ Ver mais {hiddenN}</button>}
+{expanded && allCards.length > MAX_VIS && <button onClick={() => setExpandCol(p=>({...p,[col.id]:false}))} style={{ width:"100%", padding:"5px 0", border:"none", borderRadius:8, background:"transparent", color:T.t3, fontSize:9, cursor:"pointer", fontFamily:"'DM Sans'", marginTop:2 }}>↑ Recolher</button>}
+{!allCards.length && <div style={{ padding:16, textAlign:"center", color:T.t3, fontSize:11 }}>Vazio</div>}
 </div>;
 })}</div>
 </>}
