@@ -44,6 +44,11 @@ if (!r.ok) { const e = await r.json(); throw new Error(e.message || "Erro na fun
 const txt = await r.text();
 return txt ? JSON.parse(txt) : null;
 },
+async upload(bucket, path, file, tk) {
+const r = await fetch(`${SB_URL}/storage/v1/object/${bucket}/${path}`, { method: "POST", headers: { "Authorization": `Bearer ${tk}`, "apikey": SB_KEY, "Content-Type": file.type }, body: file });
+if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.message || "Erro no upload da foto"); }
+return `${SB_URL}/storage/v1/object/public/${bucket}/${path}`;
+},
 // FIX #4: trocado /auth/v1/admin/users (requer service_role) por /auth/v1/signup (funciona com anon key)
 async createUser(email, password, meta) {
 const r = await fetch(`${SB_URL}/auth/v1/signup`, { method: "POST", headers: this.h(), body: JSON.stringify({ email, password, data: meta }) });
@@ -226,6 +231,7 @@ const [forms, setForms] = useState([]);
 const [selForm, setSelForm] = useState(null);
 const [items, setItems] = useState([]);
 const [resp, setResp] = useState({});
+const [photos, setPhotos] = useState({});
 const [sending, setSending] = useState(false);
 
 const load = async () => {
@@ -256,19 +262,31 @@ const pickForm = async (f) => {
 setSelForm(f);
 try {
 const it = await sb.q("form_items", tk, `form_id=eq.${f.id}&active=eq.true&select=*&order=sort_order`);
-setItems(it); setResp({}); sv("m_fill");
+setItems(it); setResp({}); setPhotos({}); sv("m_fill");
 } catch (e) { msg("Erro: " + e.message, "error"); }
 };
 
 const setR = (id, val) => setResp(p => ({ ...p, [id]: val }));
-const canSend = () => items.length > 0 && items.every(i => resp[i.id]);
+const setPhoto = (id, file) => setPhotos(p => ({ ...p, [id]: file }));
+const canSend = () => items.length > 0 && items.every(i => resp[i.id]) && items.filter(i => i.photo_rule === "mandatory").every(i => photos[i.id]);
 
 const send = async () => {
 if (!canSend()) return;
 setSending(true);
 try {
 const [ck] = await sb.ins("checklists", { form_id: selForm.id, equipment_id: selEq.id, driver_id: profile.id, status: "triagem" }, tk);
-await sb.ins("checklist_responses", items.map(i => ({ checklist_id: ck.id, form_item_id: i.id, answer: resp[i.id] })), tk);
+// Upload fotos e montar respostas com photo_url
+const resps = [];
+for (const i of items) {
+  let photo_url = null;
+  if (photos[i.id]) {
+    const ext = photos[i.id].name?.split(".").pop() || "jpg";
+    const path = `${ck.id}/${i.id}.${ext}`;
+    photo_url = await sb.upload("checklist-photos", path, photos[i.id], tk);
+  }
+  resps.push({ checklist_id: ck.id, form_item_id: i.id, answer: resp[i.id], photo_url });
+}
+await sb.ins("checklist_responses", resps, tk);
 await sb.ins("checklist_history", { checklist_id: ck.id, action: "Checklist enviado", performed_by: profile.id, performed_by_name: profile.name }, tk);
 msg("Checklist enviado com sucesso!"); sv("home"); load();
 } catch (e) { msg("Erro: " + e.message, "error"); }
@@ -321,12 +339,20 @@ return <div key={it.id} style={{ background: T.c2, border: `1px solid ${a === "p
 {[["ok","✓ Sem problemas",T.g],["problem","✕ Com problema",T.r],["na","— Não possui",T.y]].map(([val,lbl,col]) =>
 <button key={val} className="rbtn" onClick={() => setR(it.id,val)}
 style={{ border:`2px solid ${a===val?col:T.bd}`, background:a===val?col+"15":"transparent", color:a===val?col:T.t2 }}>{lbl}</button>)}
-</div></div>;
+</div>
+{it.photo_rule !== "none" && <div style={{ marginTop:10 }}>
+<label style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:T.c3, borderRadius:8, cursor:"pointer", fontSize:13, color: photos[it.id] ? T.g : it.photo_rule==="mandatory" ? T.r : T.t2 }}>
+📷 {photos[it.id] ? photos[it.id].name.substring(0,20) : it.photo_rule==="mandatory" ? "Tirar foto (obrigatória)" : "Tirar foto (opcional)"}
+<input type="file" accept="image/*" capture="environment" style={{ display:"none" }} onChange={e => { if(e.target.files[0]) setPhoto(it.id, e.target.files[0]); }} />
+</label>
+{photos[it.id] && <img src={URL.createObjectURL(photos[it.id])} alt="" style={{ marginTop:6, maxWidth:"100%", maxHeight:120, borderRadius:8, objectFit:"cover" }} />}
+</div>}
+</div>;
 })}
 <div style={{ position: "sticky", bottom: 80, background: T.bg, padding: "16px 0" }}>
 <button className="btn bp bw" disabled={!canSend()||sending} onClick={send} style={{ padding: "14px 24px", fontSize: 16 }}>
 {sending ? <><span className="sp" style={{width:16,height:16}}/> Enviando...</> : "Enviar Checklist"}</button>
-{!canSend() && items.length > 0 && <div style={{ fontSize:11, color:T.r, textAlign:"center", marginTop:8 }}>Preencha todos os itens</div>}
+{!canSend() && items.length > 0 && <div style={{ fontSize:11, color:T.r, textAlign:"center", marginTop:8 }}>Preencha todos os itens{items.some(i=>i.photo_rule==="mandatory"&&!photos[i.id])?" e fotos obrigatórias":""}</div>}
 </div>
 </>}
 
@@ -477,10 +503,15 @@ const ans = r.answer;
 const color = ans === "ok" ? T.g : ans === "problem" ? T.r : T.y;
 const icon = ans === "ok" ? "✓" : ans === "problem" ? "✕" : "—";
 const lbl = ans === "ok" ? "Sem problemas" : ans === "problem" ? "Com problema" : "Não possui";
-return <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${T.bd}` }}>
+return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }}>
+<div style={{ display:"flex", alignItems:"center", gap:8 }}>
 <span style={{ color, fontWeight:700, fontSize:14, minWidth:20 }}>{icon}</span>
 <span style={{ flex:1, fontSize:13 }}>{r.label || "Item"}</span>
 <span className="badge" style={{ background:color+"20", color, fontSize:9 }}>{lbl}</span>
+</div>
+{r.photo_url && <a href={r.photo_url} target="_blank" rel="noopener noreferrer" style={{ display:"inline-block", marginTop:4, marginLeft:28 }}>
+<img src={r.photo_url} alt="Foto" style={{ width:60, height:60, objectFit:"cover", borderRadius:6, border:`1px solid ${T.bd}`, cursor:"pointer" }} />
+</a>}
 </div>;
 })}
 </div>}
