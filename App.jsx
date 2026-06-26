@@ -272,6 +272,7 @@ const [selForm, setSelForm] = useState(null);
 const [items, setItems] = useState([]);
 const [resp, setResp] = useState({});
 const [photos, setPhotos] = useState({});
+const [notes, setNotes] = useState({});
 const [sending, setSending] = useState(false);
 
 const load = async () => {
@@ -302,12 +303,13 @@ const pickForm = async (f) => {
 setSelForm(f);
 try {
 const it = await sb.q("form_items", tk, `form_id=eq.${f.id}&active=eq.true&select=*&order=sort_order`);
-setItems(it); setResp({}); setPhotos({}); sv("m_fill");
+setItems(it); setResp({}); setPhotos({}); setNotes({}); sv("m_fill");
 } catch (e) { msg("Erro: " + e.message, "error"); }
 };
 
 const setR = (id, val) => setResp(p => ({ ...p, [id]: val }));
 const setPhoto = (id, file) => setPhotos(p => ({ ...p, [id]: file }));
+const setNote = (id, txt) => setNotes(p => ({ ...p, [id]: txt }));
 const canSend = () => items.length > 0 && items.every(i => resp[i.id]) && items.filter(i => i.photo_rule === "mandatory").every(i => photos[i.id]);
 
 const send = async () => {
@@ -324,7 +326,7 @@ for (const i of items) {
     const path = `${ck.id}/${i.id}.${ext}`;
     photo_url = await sb.upload("checklist-photos", path, photos[i.id], tk);
   }
-  resps.push({ checklist_id: ck.id, form_item_id: i.id, answer: resp[i.id], photo_url });
+  resps.push({ checklist_id: ck.id, form_item_id: i.id, answer: resp[i.id], photo_url, notes: notes[i.id] || null });
 }
 await sb.ins("checklist_responses", resps, tk);
 await sb.ins("checklist_history", { checklist_id: ck.id, action: "Checklist enviado", performed_by: profile.id, performed_by_name: profile.name }, tk);
@@ -380,6 +382,7 @@ return <div key={it.id} style={{ background: T.c2, border: `1px solid ${a === "p
 <button key={val} className="rbtn" onClick={() => setR(it.id,val)}
 style={{ border:`2px solid ${a===val?col:T.bd}`, background:a===val?col+"15":"transparent", color:a===val?col:T.t2 }}>{lbl}</button>)}
 </div>
+{a === "problem" && <textarea className="inp" placeholder="Descreva o problema encontrado..." value={notes[it.id]||""} onChange={e=>setNote(it.id,e.target.value)} rows={2} style={{ marginTop:8, fontSize:12, resize:"vertical" }} />}
 {it.photo_rule !== "none" && <div style={{ marginTop:10 }}>
 <label style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:T.c3, borderRadius:8, cursor:"pointer", fontSize:13, color: photos[it.id] ? T.g : it.photo_rule==="mandatory" ? T.r : T.t2 }}>
 📷 {photos[it.id] ? photos[it.id].name.substring(0,20) : it.photo_rule==="mandatory" ? "Tirar foto (obrigatória)" : "Tirar foto (opcional)"}
@@ -628,6 +631,7 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
 {r.photo_url && <a href={r.photo_url} target="_blank" rel="noopener noreferrer" style={{ display:"inline-block", marginTop:4, marginLeft:28 }}>
 <img src={r.photo_url} alt="Foto" style={{ width:60, height:60, objectFit:"cover", borderRadius:6, border:`1px solid ${T.bd}`, cursor:"pointer" }} />
 </a>}
+{r.notes && <div style={{ marginTop:4, marginLeft:28, fontSize:11, color:T.y, fontStyle:"italic" }}>💬 {r.notes}</div>}
 </div>;
 })}
 </div>}
@@ -696,6 +700,7 @@ function FormMgr({ tk, cls, reload, msg, pid }) {
 const [forms, setForms] = useState([]); const [nn,setNn]=useState(""); const [nc,setNc]=useState("");
 const [ef,setEf]=useState(null); const [its,setIts]=useState([]); const [nil,setNil]=useState(""); const [nip,setNip]=useState("optional");
 const [eid,setEid]=useState(null); const [eil,setEil]=useState(""); const [eip,setEip]=useState("");
+const [efn,setEfn]=useState(""); const [efnEdit,setEfnEdit]=useState(false);
 useEffect(() => { loadF(); }, []);
 const loadF = async () => setForms(await sb.q("forms",tk,"active=eq.true&select=*&order=name"));
 const addF = async () => { if(!nn.trim()||!nc) return; try{await sb.ins("forms",{name:nn.trim(),class_id:nc,created_by:pid},tk); setNn(""); msg("Formulário criado"); loadF();}catch(e){msg(e.message,"error");} };
@@ -704,6 +709,7 @@ const openF = async f => { setEf(f); setIts(await sb.q("form_items",tk,`form_id=
 const addI = async () => { if(!nil.trim()||!ef) return; try{await sb.ins("form_items",{form_id:ef.id,label:nil.trim(),photo_rule:nip,sort_order:its.length},tk); setNil(""); msg("Verificação adicionada"); openF(ef);}catch(e){msg(e.message,"error");} };
 const delI = async (it) => { if(!window.confirm(`Remover "${it.label}"?`)) return; try{await sb.upd("form_items",{active:false},{id:it.id},tk); msg("Item removido"); openF(ef);}catch(e){msg(e.message,"error");} };
 const saveI = async (id) => { if(!eil.trim()) return; try{await sb.upd("form_items",{label:eil.trim(),photo_rule:eip},{id},tk); setEid(null); msg("Verificação atualizada"); openF(ef);}catch(e){msg(e.message,"error");} };
+const saveF = async (f) => { if(!efn.trim()) return; try{await sb.upd("forms",{name:efn.trim()},{id:f.id},tk); setEfnEdit(false); setEf({...f,name:efn.trim()}); msg("Formulário renomeado"); loadF();}catch(e){msg(e.message,"error");} };
 
 return <><div className="card" style={{ marginBottom:20 }}>
 <div style={{ fontWeight:600, marginBottom:12 }}>Novo Formulário</div>
@@ -716,7 +722,11 @@ return <div key={cl.id} style={{ marginBottom:24 }}>
 <div style={{ fontSize:12, fontWeight:700, color:T.ac, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{cl.name}</div>
 {cf.map(f => <div key={f.id} className="card" style={{ marginBottom:8 }}>
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:ef?.id===f.id?16:0 }}>
-<div style={{ fontWeight:600 }}>{f.name}</div>
+{ef?.id===f.id && efnEdit ? <div style={{ display:"flex", gap:4, flex:1 }}>
+<input className="inp" style={{ flex:1, padding:"6px 10px", fontSize:13 }} value={efn} onChange={e=>setEfn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveF(f)} />
+<button className="btn bp bs" style={{ fontSize:10 }} onClick={()=>saveF(f)}>✓</button>
+<button className="btn bg bs" style={{ fontSize:10 }} onClick={()=>setEfnEdit(false)}>✕</button></div>
+: <div style={{ fontWeight:600, cursor:ef?.id===f.id?"pointer":"default" }} onClick={()=>{if(ef?.id===f.id){setEfn(f.name);setEfnEdit(true);}}}>{f.name} {ef?.id===f.id && <span style={{ fontSize:9, color:T.t3 }}>✎</span>}</div>}
 <div style={{ display:"flex", gap:4 }}>
 <button className="btn bg bs" onClick={() => ef?.id===f.id?setEf(null):openF(f)}>{ef?.id===f.id?"✕":"✎"}</button>
 <button className="btn bg bs" style={{ color:T.r }} onClick={()=>delF(f)}>🗑</button></div></div>
