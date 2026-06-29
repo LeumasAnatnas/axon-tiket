@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, createContext, useContext } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from "react";
 
 // ==================== SUPABASE CONFIG ====================
 const SB_URL = "https://slappxegoqzcmkgtpieq.supabase.co";
@@ -163,7 +163,7 @@ select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+x
 .topbar{position:sticky;top:0;z-index:50;background:${T.c1}ee;backdrop-filter:blur(12px);border-bottom:1px solid ${T.bd};padding:12px 20px;display:flex;align-items:center;justify-content:space-between}
 .logo{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:${T.ac};letter-spacing:1px}
 .nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:${T.c1}ee;backdrop-filter:blur(12px);border-top:1px solid ${T.bd};padding:8px 0 12px;display:flex;justify-content:space-around}
-.ni{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:${T.t3};cursor:pointer;padding:4px 12px;border:none;background:none;font-family:'DM Sans'}
+.ni{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:${T.t3};cursor:pointer;padding:4px 12px;border:none;background:none;font-family:'DM Sans';position:relative}
 .ni.on{color:${T.ac}}
 .pg{padding:16px 20px 100px;max-width:1400px;margin:0 auto}
 .kpig{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
@@ -525,6 +525,10 @@ const [filtUr, setFiltUr] = useState("");
 const [kSearch, setKSearch] = useState("");
 const [expandCol, setExpandCol] = useState({});
 const MAX_VIS = 6;
+const [newCount, setNewCount] = useState(0);
+const lastKanLen = useRef(0);
+const beep = () => { try { const a=new AudioContext(),o=a.createOscillator(),g=a.createGain(); o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=0.3;o.start();o.stop(a.currentTime+0.15); } catch(e){} };
+const notifyNew = (n) => { if(n<=0) return; beep(); setNewCount(n); document.title=`(${n}) AXON TIKET`; if(Notification.permission==="granted") new Notification("AXON TIKET",{body:`${n} novo${n>1?"s":""} checklist${n>1?"s":""}`,icon:"/icon-192.png"}); };
 
 const relDt = (iso) => { const d=new Date(iso), now=new Date(), df=Math.floor((now-d)/864e5); return df===0?"Hoje":df===1?"Ontem":df<7?df+"d":d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}); };
 const fmtTm = (iso) => new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
@@ -566,7 +570,23 @@ setKan(k); setCls(c);
 } catch (e) { msg("Erro: " + e.message, "error"); }
 finally { setLd(false); }
 };
-useEffect(() => { load(); }, []);
+useEffect(() => { load(); if(Notification.permission==="default") Notification.requestPermission(); }, []);
+
+// Polling 30s para novos checklists
+useEffect(() => {
+const poll = async () => { try {
+const fresh = await sb.q("v_kanban", tk, "order=submitted_at.desc");
+if(lastKanLen.current > 0 && fresh.length > lastKanLen.current) {
+const diff = fresh.length - lastKanLen.current;
+notifyNew(diff);
+setKan(fresh);
+}
+lastKanLen.current = fresh.length;
+} catch(e){} };
+lastKanLen.current = kan.length;
+const id = setInterval(poll, 30000);
+return () => clearInterval(id);
+}, [kan.length]);
 
 // FIX #2: busca histórico completo do checklist
 const loadCardHistory = async (id) => {
@@ -768,7 +788,7 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
 </div>}
 
 <nav className="nav">
-<button className={`ni ${v==="home"?"on":""}`} onClick={() => { sv("home"); load(); }}>📋 <span>Kanban</span></button>
+<button className={`ni ${v==="home"?"on":""}`} onClick={() => { sv("home"); load(); setNewCount(0); document.title="AXON TIKET"; }}>📋 <span>Kanban</span>{newCount>0&&<span style={{ position:"absolute",top:2,right:8,background:T.r,color:"#fff",fontSize:9,fontWeight:700,borderRadius:10,padding:"1px 5px",minWidth:14,textAlign:"center",lineHeight:"14px",fontFamily:"'JetBrains Mono'" }}>{newCount}</span>}</button>
 <button className={`ni ${v==="g_mgmt"?"on":""}`} onClick={() => { sv("g_mgmt"); load(); }}>⚙️ <span>Gerenciar</span></button>
 <button className={`ni ${v==="g_dash"?"on":""}`} onClick={() => sv("g_dash")}>📊 <span>Relatórios</span></button>
 <button className={`ni ${v==="g_pw"?"on":""}`} onClick={() => sv("g_pw")}>👤 <span>Perfil</span></button>
