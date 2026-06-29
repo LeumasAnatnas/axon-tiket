@@ -689,6 +689,7 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 {mt === "equip" && <EquipMgr tk={tk} cls={cls} reload={load} msg={msg} />}
 </>}
 {v === "g_pw" && <PwChange msg={msg} />}
+{v === "g_dash" && <Dashboard tk={tk} />}
 </>}
 </div>
 
@@ -769,6 +770,7 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
 <nav className="nav">
 <button className={`ni ${v==="home"?"on":""}`} onClick={() => { sv("home"); load(); }}>📋 <span>Kanban</span></button>
 <button className={`ni ${v==="g_mgmt"?"on":""}`} onClick={() => { sv("g_mgmt"); load(); }}>⚙️ <span>Gerenciar</span></button>
+<button className={`ni ${v==="g_dash"?"on":""}`} onClick={() => sv("g_dash")}>📊 <span>Relatórios</span></button>
 <button className={`ni ${v==="g_pw"?"on":""}`} onClick={() => sv("g_pw")}>👤 <span>Perfil</span></button>
 </nav>
 </>;
@@ -934,4 +936,49 @@ return <><h2 style={{ fontSize:20, marginBottom:20 }}>Meu Perfil</h2>
 <div style={{ marginBottom:10 }}><input className="inp" type="password" placeholder="Nova senha (mín. 6)" value={np} onChange={e=>setNp(e.target.value)} /></div>
 <div style={{ marginBottom:16 }}><input className="inp" type="password" placeholder="Confirmar" value={cp} onChange={e=>setCp(e.target.value)} /></div>
 <button className="btn bp" onClick={go} disabled={ld}>{ld?"Salvando...":"Alterar Senha"}</button></div></>;
+}
+
+function Dashboard({ tk }) {
+const [days, setDays] = useState(30);
+const [data, setData] = useState(null);
+const [ld, setLd] = useState(true);
+const load = async () => { setLd(true); try { const r = await sb.rpc("get_dashboard",{p_days:days},tk); setData(r); } catch(e){console.error(e);} setLd(false); };
+useEffect(() => { load(); }, [days]);
+const Bar = ({ label, value, max, color }) => <div style={{ marginBottom:8 }}>
+<div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:3 }}><span style={{ color:T.t1 }}>{label}</span><span style={{ fontFamily:"'JetBrains Mono'", fontWeight:700, color }}>{value}</span></div>
+<div style={{ background:T.c2, borderRadius:6, height:10, overflow:"hidden" }}><div style={{ width:`${max?Math.round(value/max*100):0}%`, height:"100%", background:color, borderRadius:6, transition:"width .3s" }}/></div></div>;
+if(ld) return <div style={{ textAlign:"center", padding:40 }}><div className="sp"/></div>;
+if(!data) return <div style={{ textAlign:"center", padding:40, color:T.t3 }}>Sem dados</div>;
+const k = data.kpis;
+const pct = k.total > 0 ? Math.round(k.with_problems/k.total*100) : 0;
+const maxDaily = data.daily ? Math.max(...data.daily.map(d=>d.total)) : 0;
+const maxProb = data.top_problems?.length ? data.top_problems[0].count : 0;
+const maxEquip = data.by_equipment?.length ? Math.max(...data.by_equipment.map(e=>e.total)) : 0;
+return <>
+<div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:14 }}>
+<h2 style={{ fontSize:20, margin:0 }}>Relatórios</h2>
+<div style={{ display:"flex", gap:2, background:T.c2, padding:3, borderRadius:8 }}>
+{[[7,"7d"],[30,"30d"],[90,"90d"],[9999,"Todos"]].map(([d,lb]) =>
+<button key={d} onClick={()=>setDays(d)} style={{ padding:"5px 12px", border:"none", borderRadius:6, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans'", background:days===d?T.ac:"transparent", color:days===d?T.bg:T.t2 }}>{lb}</button>)}
+</div></div>
+<div className="kpig">
+{[["📋","Checklists",k.total,"#3b82f6"],["⚠️","Com Problemas",k.with_problems,T.r],["📊","% Problemas",pct+"%",T.y],["⏱️","Tempo Médio",k.avg_hours+"h",T.g]].map(([ic,lb,val,co],i) =>
+<div key={i} style={{ background:T.c1, border:`1px solid ${T.bd}`, borderRadius:10, padding:"10px 12px", display:"flex", alignItems:"center", gap:8 }}>
+<span style={{ fontSize:20 }}>{ic}</span>
+<div><div style={{ fontSize:20, fontWeight:700, fontFamily:"'JetBrains Mono'", color:co }}>{val}</div>
+<div style={{ fontSize:9, color:T.t2, textTransform:"uppercase", letterSpacing:.3 }}>{lb}</div></div></div>)}
+</div>
+{data.daily?.length > 0 && <div style={{ background:T.c1, border:`1px solid ${T.bd}`, borderRadius:10, padding:16, marginBottom:14 }}>
+<div style={{ fontSize:14, fontWeight:700, marginBottom:12, color:T.t1 }}>Checklists por Dia</div>
+{data.daily.map(d => <Bar key={d.day} label={new Date(d.day+"T12:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"short"})} value={d.total} max={maxDaily} color="#3b82f6" />)}
+</div>}
+{data.top_problems?.length > 0 && <div style={{ background:T.c1, border:`1px solid ${T.bd}`, borderRadius:10, padding:16, marginBottom:14 }}>
+<div style={{ fontSize:14, fontWeight:700, marginBottom:12, color:T.t1 }}>Itens com Mais Problemas</div>
+{data.top_problems.map(t => <Bar key={t.label} label={t.label} value={t.count} max={maxProb} color={T.r} />)}
+</div>}
+{data.by_equipment?.length > 0 && <div style={{ background:T.c1, border:`1px solid ${T.bd}`, borderRadius:10, padding:16, marginBottom:14 }}>
+<div style={{ fontSize:14, fontWeight:700, marginBottom:12, color:T.t1 }}>Por Equipamento</div>
+{data.by_equipment.map(e => <Bar key={e.name} label={e.name} value={e.total} max={maxEquip} color="#3b82f6" />)}
+</div>}
+</>;
 }
