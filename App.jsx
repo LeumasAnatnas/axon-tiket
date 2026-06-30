@@ -1210,12 +1210,78 @@ const maxDaily = data.daily ? Math.max(...data.daily.map(d=>d.total)) : 0;
 const maxProb = data.top_problems?.length ? data.top_problems[0].count : 0;
 const maxEquip = data.by_equipment?.length ? Math.max(...data.by_equipment.map(e=>e.total)) : 0;
 const maxGestor = data.by_gestor?.length ? Math.max(...data.by_gestor.map(g=>g.total)) : 0;
+
+const loadScript = (url) => new Promise((res,rej) => { if(document.querySelector(`script[src="${url}"]`)) return res(); const s=document.createElement("script"); s.src=url; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+
+const exportPDF = async () => {
+  try {
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js");
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js");
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF(); let y = 15;
+    const periodLabel = days===7?"7 dias":days===30?"30 dias":days===90?"90 dias":"Todos";
+    doc.setFontSize(18); doc.text("AXON TIKET — Relatório", 14, y); y+=8;
+    doc.setFontSize(10); doc.setTextColor(100); doc.text(`Período: ${periodLabel} • Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`, 14, y); y+=10;
+    doc.setTextColor(0);
+    doc.autoTable({ startY:y, head:[["Métrica","Valor"]], body:[
+      ["Checklists",k.total],["Com Problemas",`${k.with_problems} (${pct}%)`],["Tempo Total Médio",`${k.avg_hours}h`],
+      ["Backlog Pendente",b.total_pendente||0],["Reação Média",`${s.avg_reaction_hours||0}h`],["Reação Pior Caso",`${s.max_reaction_hours||0}h`],
+      ["Atendimento Médio",`${s.avg_service_hours||0}h`],["Atendimento Pior Caso",`${s.max_service_hours||0}h`],
+    ], theme:"grid", headStyles:{fillColor:[0,212,255]}, styles:{fontSize:9} }); y=doc.lastAutoTable.finalY+10;
+    if(data.by_gestor?.length) { doc.setFontSize(12); doc.text("Desempenho por Gestor",14,y); y+=4;
+      doc.autoTable({ startY:y, head:[["Gestor","Checklists","Tempo Médio"]], body:data.by_gestor.map(g=>[g.name,g.total,g.avg_hours+"h"]), theme:"grid", headStyles:{fillColor:[0,212,255]}, styles:{fontSize:9} }); y=doc.lastAutoTable.finalY+10; }
+    if(data.top_problems?.length) { if(y>240){doc.addPage();y=15;} doc.setFontSize(12); doc.text("Top Problemas",14,y); y+=4;
+      doc.autoTable({ startY:y, head:[["Item","Ocorrências"]], body:data.top_problems.map(t=>[t.label,t.count]), theme:"grid", headStyles:{fillColor:[239,68,68]}, styles:{fontSize:9} }); y=doc.lastAutoTable.finalY+10; }
+    if(data.by_equipment?.length) { if(y>240){doc.addPage();y=15;} doc.setFontSize(12); doc.text("Por Equipamento",14,y); y+=4;
+      doc.autoTable({ startY:y, head:[["Equipamento","Total","Problemas"]], body:data.by_equipment.map(e=>[e.name,e.total,e.problems]), theme:"grid", headStyles:{fillColor:[59,130,246]}, styles:{fontSize:9} }); y=doc.lastAutoTable.finalY+10; }
+    const ev = data.evaluation||{};
+    if(ev.total_evaluated>0) { if(y>240){doc.addPage();y=15;} doc.setFontSize(12); doc.text("Avaliações",14,y); y+=4;
+      doc.autoTable({ startY:y, head:[["Métrica","Valor"]], body:[
+        ["Nota Média",ev.avg_rating],["Avaliados",ev.total_evaluated],["Pendentes",ev.pending],
+        ["Totalmente",ev.totalmente],["Parcialmente",ev.parcialmente],["Não atendido",ev.nao_atendido],
+      ], theme:"grid", headStyles:{fillColor:[139,92,246]}, styles:{fontSize:9} }); y=doc.lastAutoTable.finalY+10; }
+    if(data.recent_feedback?.length) { if(y>220){doc.addPage();y=15;} doc.setFontSize(12); doc.text("Feedback dos Motoristas",14,y); y+=4;
+      doc.autoTable({ startY:y, head:[["Motorista","Equipamento","Gestor","Nota","Status","Comentário"]], body:data.recent_feedback.map(f=>[f.driver,f.equipment,f.gestor||"",f.rating,f.status==="totalmente_atendido"?"Totalmente":f.status==="parcialmente"?"Parcialmente":"Não atendido",f.notes||""]), theme:"grid", headStyles:{fillColor:[139,92,246]}, styles:{fontSize:8}, columnStyles:{5:{cellWidth:50}} }); }
+    doc.save(`axon-tiket-relatorio-${periodLabel.replace(/ /g,"")}.pdf`);
+  } catch(e) { console.error(e); alert("Erro ao gerar PDF: "+e.message); }
+};
+
+const exportExcel = async () => {
+  try {
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+    const XLSX = window.XLSX; const wb = XLSX.utils.book_new();
+    const periodLabel = days===7?"7 dias":days===30?"30 dias":days===90?"90 dias":"Todos";
+    const kpis = [["Métrica","Valor"],["Período",periodLabel],["Checklists",k.total],["Com Problemas",k.with_problems],["% Problemas",pct+"%"],
+      ["Tempo Total Médio (h)",k.avg_hours],["Backlog Pendente",b.total_pendente||0],
+      ["Reação Média (h)",s.avg_reaction_hours||0],["Reação Pior Caso (h)",s.max_reaction_hours||0],
+      ["Atendimento Médio (h)",s.avg_service_hours||0],["Atendimento Pior Caso (h)",s.max_service_hours||0]];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kpis), "KPIs");
+    if(data.daily?.length) { const d=[["Data","Total","Problemas"],...data.daily.map(d=>[d.day,d.total,d.problems])]; XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(d), "Por Dia"); }
+    if(data.by_gestor?.length) { const g=[["Gestor","Checklists","Tempo Atendimento Médio (h)"],...data.by_gestor.map(g=>[g.name,g.total,g.avg_hours])]; XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(g), "Por Gestor"); }
+    if(data.top_problems?.length) { const t=[["Item","Ocorrências"],...data.top_problems.map(t=>[t.label,t.count])]; XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(t), "Problemas"); }
+    if(data.by_equipment?.length) { const e=[["Equipamento","Total","Problemas"],...data.by_equipment.map(e=>[e.name,e.total,e.problems])]; XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(e), "Equipamentos"); }
+    const ev = data.evaluation||{};
+    if(ev.total_evaluated>0||data.recent_feedback?.length) {
+      const rows=[["Nota Média",ev.avg_rating],["Avaliados",ev.total_evaluated],["Pendentes",ev.pending],
+        ["Totalmente",ev.totalmente],["Parcialmente",ev.parcialmente],["Não atendido",ev.nao_atendido],
+        [],[],["Motorista","Equipamento","Gestor","Nota","Status","Comentário","Data Checklist","Data Avaliação"],
+        ...(data.recent_feedback||[]).map(f=>[f.driver,f.equipment,f.gestor||"",f.rating,f.status==="totalmente_atendido"?"Totalmente":f.status==="parcialmente"?"Parcialmente":"Não atendido",f.notes||"",f.submitted_at?new Date(f.submitted_at).toLocaleDateString("pt-BR"):"",f.eval_at?new Date(f.eval_at).toLocaleDateString("pt-BR"):""])];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Avaliações");
+    }
+    XLSX.writeFile(wb, `axon-tiket-relatorio-${periodLabel.replace(/ /g,"")}.xlsx`);
+  } catch(e) { console.error(e); alert("Erro ao gerar Excel: "+e.message); }
+};
+
 return <>
 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:14 }}>
 <h2 style={{ fontSize:20, margin:0 }}>Relatórios</h2>
 <div style={{ display:"flex", gap:2, background:T.c2, padding:3, borderRadius:8 }}>
 {[[7,"7d"],[30,"30d"],[90,"90d"],[9999,"Todos"]].map(([d,lb]) =>
 <button key={d} onClick={()=>setDays(d)} style={{ padding:"5px 12px", border:"none", borderRadius:6, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans'", background:days===d?T.ac:"transparent", color:days===d?T.bg:T.t2 }}>{lb}</button>)}
+</div>
+<div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
+<button className="btn bg bs" style={{ fontSize:11, padding:"5px 12px" }} onClick={exportPDF}>📄 PDF</button>
+<button className="btn bg bs" style={{ fontSize:11, padding:"5px 12px" }} onClick={exportExcel}>📊 Excel</button>
 </div></div>
 {/* KPIs Gerais */}
 <div className="kpig">
