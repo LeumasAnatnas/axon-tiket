@@ -1190,6 +1190,12 @@ function Dashboard({ tk }) {
 const [days, setDays] = useState(30);
 const [data, setData] = useState(null);
 const [ld, setLd] = useState(true);
+const [showExport, setShowExport] = useState(false);
+const [expDriver, setExpDriver] = useState("");
+const [expFrom, setExpFrom] = useState("");
+const [expTo, setExpTo] = useState("");
+const [expLd, setExpLd] = useState(false);
+const [drivers, setDrivers] = useState([]);
 const load = async () => { setLd(true); try { const r = await sb.rpc("get_dashboard",{p_days:days},tk); setData(r); } catch(e){console.error(e);} setLd(false); };
 useEffect(() => { load(); }, [days]);
 const Bar = ({ label, value, max, color }) => <div style={{ marginBottom:8 }}>
@@ -1210,13 +1216,6 @@ const maxDaily = data.daily ? Math.max(...data.daily.map(d=>d.total)) : 0;
 const maxProb = data.top_problems?.length ? data.top_problems[0].count : 0;
 const maxEquip = data.by_equipment?.length ? Math.max(...data.by_equipment.map(e=>e.total)) : 0;
 const maxGestor = data.by_gestor?.length ? Math.max(...data.by_gestor.map(g=>g.total)) : 0;
-
-const [showExport, setShowExport] = useState(false);
-const [expDriver, setExpDriver] = useState("");
-const [expFrom, setExpFrom] = useState("");
-const [expTo, setExpTo] = useState("");
-const [expLd, setExpLd] = useState(false);
-const [drivers, setDrivers] = useState([]);
 
 const openExport = async () => { setShowExport(true); if(!drivers.length) { const d=await sb.q("profiles",tk,"role=eq.motorista&active=eq.true&select=id,name&order=name"); setDrivers(d||[]); } };
 
