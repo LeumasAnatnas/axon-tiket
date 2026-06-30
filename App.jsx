@@ -13,7 +13,7 @@ return h;
 },
 async signIn(email, password) {
 const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, { method: "POST", headers: this.h(), body: JSON.stringify({ email, password }) });
-if (!r.ok) { const e = await r.json(); throw new Error(e.error_description || e.msg || "Login falhou"); }
+if (!r.ok) { const e = await r.json(); throw new Error(e.error_description === "Invalid login credentials" ? "E-mail ou senha incorretos" : (e.error_description || e.msg || "Login falhou")); }
 return r.json();
 },
 async signOut(tk) { await fetch(`${SB_URL}/auth/v1/logout`, { method: "POST", headers: this.h(tk) }).catch(() => {}); },
@@ -285,6 +285,7 @@ const [evalModal, setEvalModal] = useState(null);
 const [evalStatus, setEvalStatus] = useState("");
 const [evalRating, setEvalRating] = useState(5);
 const [evalNotes, setEvalNotes] = useState("");
+const [evalResps, setEvalResps] = useState([]);
 
 const load = async () => {
 try {
@@ -293,7 +294,7 @@ sb.q("equipment", tk, "active=eq.true&select=*&order=prefix"),
 sb.q("classes", tk, "active=eq.true&select=*&order=name"),
 sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&order=submitted_at.desc&limit=20`),
 sb.q("checklists", tk, `driver_id=eq.${profile.id}&reinspection_requested=eq.true&select=id,equipment_id,form_id,reinspection_notes`),
-sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&status=eq.atendido&eval_status=is.null&order=submitted_at.desc`),
+sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&status=eq.atendido&eval_status=is.null&problem_count=gt.0&or=(reinspection_requested.eq.false,reinspection_requested.is.null)&order=submitted_at.desc`),
 ]);
 setEqs(eq); setCls(cl); setHist(ch); setReinsps(ri||[]); setPendingEvals(pe||[]);
 } catch (e) { msg("Erro: " + e.message, "error"); }
@@ -382,10 +383,12 @@ return <>
 {/* Avaliações pendentes */}
 {pendingEvals.length > 0 && <div style={{ marginBottom:16 }}>
 <div style={{ fontSize:12, fontWeight:700, color:T.p, textTransform:"uppercase", letterSpacing:.5, marginBottom:8 }}>⭐ Avaliações pendentes ({pendingEvals.length})</div>
-{pendingEvals.map(pe => <div key={pe.id} className="card" onClick={()=>{setEvalModal(pe);setEvalStatus("");setEvalRating(5);setEvalNotes("");}} style={{ cursor:"pointer", borderColor:T.p+"60", marginBottom:8 }}>
+{pendingEvals.map(pe => <div key={pe.id} className="card" onClick={async()=>{setEvalModal(pe);setEvalStatus("");setEvalRating(5);setEvalNotes("");try{const r=await sb.q("v_checklist_items",tk,`checklist_id=eq.${pe.id}&answer=eq.problem`);setEvalResps(r||[]);}catch{setEvalResps([]);}}} style={{ cursor:"pointer", borderColor:T.p+"60", marginBottom:8 }}>
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
 <div><div style={{ fontWeight:700, fontSize:14, fontFamily:"'JetBrains Mono'" }}>{pe.equipment_prefix} <span style={{ color:T.t3 }}>— {pe.equipment_plate}</span></div>
-<div style={{ fontSize:12, color:T.p, marginTop:4 }}>Atendido — toque para avaliar</div></div>
+<div style={{ fontSize:12, color:T.t2, marginTop:2 }}>{pe.form_name}</div>
+<div style={{ fontSize:11, color:T.t3, marginTop:2 }}>{new Date(pe.submitted_at).toLocaleDateString("pt-BR")} às {new Date(pe.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})} • {pe.problem_count} problema{pe.problem_count>1?"s":""}</div>
+<div style={{ fontSize:12, color:T.p, marginTop:4 }}>Toque para avaliar</div></div>
 <span style={{ color:T.p, fontSize:20 }}>⭐</span></div></div>)}
 </div>}
 {/* Alertas de re-inspeção */}
@@ -543,6 +546,14 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
 <div style={{ fontSize:12, color:T.t1 }}>{evalModal.gestor_name}</div>
 {evalModal.concluded_at && <div style={{ fontSize:10, color:T.t3, marginTop:2 }}>{new Date(evalModal.concluded_at).toLocaleDateString("pt-BR")} às {new Date(evalModal.concluded_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
 {evalModal.conclusion_text && <div style={{ fontSize:12, color:T.t2, marginTop:6, fontStyle:"italic" }}>💬 {evalModal.conclusion_text}</div>}
+</div>}
+{evalResps.length > 0 && <div style={{ marginBottom:12, padding:"10px 14px", background:T.r+"10", border:`1px solid ${T.r}30`, borderRadius:8 }}>
+<div style={{ fontSize:11, fontWeight:700, color:T.r, marginBottom:8 }}>⚠️ Problemas reportados ({evalResps.length})</div>
+{evalResps.map((r,i) => <div key={i} style={{ padding:"6px 0", borderBottom:i<evalResps.length-1?`1px solid ${T.bd}`:"none" }}>
+<div style={{ fontSize:13, fontWeight:600 }}>{r.label||"Item"}</div>
+{r.notes && <div style={{ fontSize:11, color:T.y, marginTop:2, fontStyle:"italic" }}>💬 {r.notes}</div>}
+{r.photo_url && <img src={r.photo_url} alt="" style={{ width:60, height:60, objectFit:"cover", borderRadius:6, border:`1px solid ${T.bd}`, marginTop:4 }} />}
+</div>)}
 </div>}
 <div className="lbl">Como foi o atendimento?</div>
 <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
@@ -1075,14 +1086,30 @@ return <div key={eq.id} className="card" style={{ display:"flex", justifyContent
 function PwChange({ msg }) {
 const { tk, profile } = useAuth();
 const [np,setNp]=useState(""); const [cp,setCp]=useState(""); const [ld,setLd]=useState(false);
+const [editSelf,setEditSelf]=useState(false); const [sN,setSN]=useState(profile.name); const [sE,setSE]=useState(profile.email);
 const go = async () => { if(np.length<6) return msg("Mín. 6 caracteres","error"); if(np!==cp) return msg("Senhas não conferem","error");
 setLd(true); try{await sb.updatePassword(tk,np); msg("Senha alterada!"); setNp("");setCp("");}catch(e){msg(e.message,"error");}finally{setLd(false);} };
+const saveSelf = async () => { if(!sN.trim()||!sE.trim()) return msg("Preencha nome e e-mail","error");
+try{
+  await sb.upd("profiles",{name:sN.trim()},{id:profile.id},tk);
+  if(sE.trim().toLowerCase()!==profile.email.toLowerCase()) await sb.rpc("update_user_email",{target_user_id:profile.id,new_email:sE.trim()},tk);
+  msg("Perfil atualizado!"); setEditSelf(false);
+}catch(e){msg(e.message,"error");} };
 return <><h2 style={{ fontSize:20, marginBottom:20 }}>Meu Perfil</h2>
 <div className="card" style={{ marginBottom:16 }}>
+{editSelf ? <div>
+<div style={{ marginBottom:8 }}><div className="lbl">Nome</div><input className="inp" value={sN} onChange={e=>setSN(e.target.value)} /></div>
+<div style={{ marginBottom:12 }}><div className="lbl">E-mail</div><input className="inp" value={sE} onChange={e=>setSE(e.target.value)} /></div>
+<div style={{ display:"flex", gap:6 }}>
+<button className="btn bp bs" onClick={saveSelf}>✓ Salvar</button>
+<button className="btn bg bs" onClick={()=>{setEditSelf(false);setSN(profile.name);setSE(profile.email);}}>✕ Cancelar</button></div>
+</div> : <div>
 <div style={{ fontSize:12, color:T.t2 }}>Nome</div><div style={{ fontWeight:600, fontSize:18 }}>{profile.name}</div>
 <div style={{ fontSize:12, color:T.t2, marginTop:8 }}>E-mail</div><div>{profile.email}</div>
 <div style={{ fontSize:12, color:T.t2, marginTop:8 }}>Perfil</div>
-<span className="badge" style={{ background:T.ac+"20", color:T.ac, marginTop:4 }}>{profile.role==="admin"?"Administrador":profile.role==="gestor"?"Gestor de Manutenção":"Motorista"}</span></div>
+<span className="badge" style={{ background:T.ac+"20", color:T.ac, marginTop:4 }}>{profile.role==="admin"?"Administrador":profile.role==="gestor"?"Gestor de Manutenção":"Motorista"}</span>
+{profile.role==="admin" && <div style={{ marginTop:12 }}><button className="btn bg bs" onClick={()=>setEditSelf(true)}>✎ Editar meu perfil</button></div>}
+</div>}</div>
 <div className="card">
 <div style={{ fontWeight:600, marginBottom:12 }}>Alterar Senha</div>
 <div style={{ marginBottom:10 }}><input className="inp" type="password" placeholder="Nova senha (mín. 6)" value={np} onChange={e=>setNp(e.target.value)} /></div>
@@ -1171,6 +1198,25 @@ return <>
 {[["Totalmente",data.evaluation.totalmente,T.g],["Parcialmente",data.evaluation.parcialmente,T.y],["Não atendido",data.evaluation.nao_atendido,T.r]].map(([l,v,c])=>
 v>0 && <span key={l} className="badge" style={{ background:c+"20", color:c, fontSize:11 }}>{l}: {v}</span>)}
 </div>}
+</Section>}
+{data.recent_feedback?.length > 0 && <Section title="💬 Feedback dos Motoristas">
+{data.recent_feedback.map((f,i) => {
+const sc = f.status==="totalmente_atendido"?T.g:f.status==="parcialmente"?T.y:T.r;
+const sl = f.status==="totalmente_atendido"?"Totalmente":f.status==="parcialmente"?"Parcialmente":"Não atendido";
+return <div key={i} style={{ padding:"10px 0", borderBottom:i<data.recent_feedback.length-1?`1px solid ${T.bd}`:"none" }}>
+<div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+<div>
+<span style={{ fontWeight:700, fontSize:13 }}>{f.driver}</span>
+<span style={{ fontSize:11, color:T.t3, marginLeft:8 }}>{f.equipment}</span>
+{f.gestor && <span style={{ fontSize:10, color:T.t3, marginLeft:6 }}>→ {f.gestor}</span>}
+</div>
+<div style={{ display:"flex", alignItems:"center", gap:6 }}>
+<span className="badge" style={{ background:sc+"20", color:sc, fontSize:9 }}>{sl}</span>
+<span style={{ fontFamily:"'JetBrains Mono'", fontWeight:700, color:T.p, fontSize:13 }}>⭐{f.rating}</span>
+</div></div>
+{f.notes && <div style={{ fontSize:12, color:T.t2, marginTop:4, fontStyle:"italic", paddingLeft:4 }}>"{f.notes}"</div>}
+<div style={{ fontSize:10, color:T.t3, marginTop:3 }}>{new Date(f.eval_at).toLocaleDateString("pt-BR")} às {new Date(f.eval_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
+</div>; })}
 </Section>}
 </>;
 }
