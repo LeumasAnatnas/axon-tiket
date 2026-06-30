@@ -201,10 +201,13 @@ const [toast, setToast] = useState(null);
 const msg = useCallback((m, t = "success") => { setToast({ m, t }); setTimeout(() => setToast(null), 3000); }, []);
 
 if (loading) return <Splash />;
-if (!profile) return <Login msg={msg} />;
+
+const toastEl = toast && <div className="toast" style={{ background: toast.t === "error" ? T.r : T.g, color: "#fff" }}>{toast.m}</div>;
+
+if (!profile) return <>{toastEl}<Login msg={msg} /></>;
 
 return <>
-{toast && <div className="toast" style={{ background: toast.t === "error" ? T.r : T.g, color: "#fff" }}>{toast.m}</div>}
+{toastEl}
 {profile.role === "gestor" || profile.role === "admin" ? <Gestor v={view} sv={setView} msg={msg} /> : <Motorista v={view} sv={setView} msg={msg} />}
 </>;
 }
@@ -1215,7 +1218,7 @@ return <div key={i} style={{ padding:"10px 0", borderBottom:i<data.recent_feedba
 <span style={{ fontFamily:"'JetBrains Mono'", fontWeight:700, color:T.p, fontSize:13 }}>⭐{f.rating}</span>
 </div></div>
 {f.notes && <div style={{ fontSize:12, color:T.t2, marginTop:4, fontStyle:"italic", paddingLeft:4 }}>"{f.notes}"</div>}
-<div style={{ fontSize:10, color:T.t3, marginTop:3 }}>{new Date(f.eval_at).toLocaleDateString("pt-BR")} às {new Date(f.eval_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
+<div style={{ fontSize:10, color:T.t3, marginTop:3 }}>Checklist de {new Date(f.submitted_at).toLocaleDateString("pt-BR")} • Avaliado em {new Date(f.eval_at).toLocaleDateString("pt-BR")} às {new Date(f.eval_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
 </div>; })}
 </Section>}
 </>;
