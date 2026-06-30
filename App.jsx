@@ -205,7 +205,7 @@ if (!profile) return <Login msg={msg} />;
 
 return <>
 {toast && <div className="toast" style={{ background: toast.t === "error" ? T.r : T.g, color: "#fff" }}>{toast.m}</div>}
-{profile.role === "gestor" ? <Gestor v={view} sv={setView} msg={msg} /> : <Motorista v={view} sv={setView} msg={msg} />}
+{profile.role === "gestor" || profile.role === "admin" ? <Gestor v={view} sv={setView} msg={msg} /> : <Motorista v={view} sv={setView} msg={msg} />}
 </>;
 }
 
@@ -700,9 +700,10 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 {v === "g_mgmt" && <>
 <h2 style={{ fontSize:20, marginBottom:16 }}>Gerenciamento</h2>
 <div className="tabs">
-{[["classes","Classes"],["forms","Formulários"],["users","Motoristas"],["equip","Equipamentos"]].map(([k,l]) =>
+{[[profile.role==="admin"&&"gestors","Gestores"],["classes","Classes"],["forms","Formulários"],["users","Motoristas"],["equip","Equipamentos"]].filter(([k])=>k).map(([k,l]) =>
 <button key={k} className={`tab ${mt===k?"on":""}`} onClick={() => setMt(k)}>{l}</button>)}
 </div>
+{mt === "gestors" && profile.role==="admin" && <GestorMgr tk={tk} msg={msg} />}
 {mt === "classes" && <ClassMgr tk={tk} cls={cls} reload={load} msg={msg} />}
 {mt === "forms" && <FormMgr tk={tk} cls={cls} reload={load} msg={msg} pid={profile.id} />}
 {mt === "users" && <UserMgr tk={tk} msg={msg} />}
@@ -907,6 +908,39 @@ return <><div className="card" style={{ marginBottom:20 }}>
 </div>)}</div></>;
 }
 
+function GestorMgr({ tk, msg }) {
+const [gs,setGs]=useState([]); const [n,setN]=useState(""); const [e,setE]=useState(""); const [p,setP]=useState("");
+const [editId,setEditId]=useState(null); const [eN,setEN]=useState("");
+useEffect(()=>{loadG();},[]);
+const loadG = async () => setGs(await sb.q("profiles",tk,"role=eq.gestor&active=eq.true&select=*&order=name"));
+const add = async () => { if(!n.trim()||!e.trim()||!p.trim()) return msg("Preencha tudo","error");
+try{
+  await sb.createUser(e.trim(),p.trim(),{name:n.trim(),role:"gestor"});
+  setN("");setE("");setP("");
+  msg("Gestor cadastrado!");
+  setTimeout(() => loadG(), 1500);
+}catch(err){msg(err.message,"error");} };
+const saveName = async (id) => { if(!eN.trim()) return; try{await sb.upd("profiles",{name:eN.trim()},{id},tk); setEditId(null); msg("Nome atualizado"); loadG();}catch(err){msg(err.message,"error");} };
+return <><div className="card" style={{ marginBottom:20 }}>
+<div style={{ fontWeight:600, marginBottom:12 }}>Cadastrar Gestor</div>
+<div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+<input className="inp" placeholder="Nome" style={{ flex:1, minWidth:140 }} value={n} onChange={x=>setN(x.target.value)} />
+<input className="inp" placeholder="E-mail" style={{ flex:1, minWidth:140 }} value={e} onChange={x=>setE(x.target.value)} />
+<input className="inp" type="password" placeholder="Senha" style={{ flex:1, minWidth:110 }} value={p} onChange={x=>setP(x.target.value)} />
+<button className="btn bp" onClick={add}>+</button></div></div>
+<div style={{ display:"grid", gap:8 }}>{gs.map(g => <div key={g.id} className="card" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+{editId===g.id ? <div style={{ display:"flex", gap:6, flex:1, alignItems:"center" }}>
+<input className="inp" style={{ flex:1 }} value={eN} onChange={x=>setEN(x.target.value)} />
+<button className="btn bp bs" onClick={()=>saveName(g.id)}>✓</button>
+<button className="btn bg bs" onClick={()=>setEditId(null)}>✕</button></div>
+: <><div><div style={{ fontWeight:600 }}>{g.name}</div><div style={{ fontSize:12, color:T.t2 }}>{g.email}</div></div>
+<div style={{ display:"flex", gap:4 }}>
+<button className="btn bg bs" onClick={()=>{setEditId(g.id);setEN(g.name);}}>✎</button>
+<button className="btn bg bs" onClick={async()=>{const pw=window.prompt(`Nova senha para ${g.name} (mín. 6 caracteres):`);if(!pw) return;try{await sb.rpc("reset_user_password",{target_user_id:g.id,new_password:pw},tk);msg("Senha resetada!");}catch(err){msg(err.message,"error");}}}>🔑</button>
+<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar gestor "${g.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:g.id},tk);msg("Gestor desativado");loadG();}catch(err){msg(err.message,"error");}}}>🗑</button></div></>}
+</div>)}</div></>;
+}
+
 function EquipMgr({ tk, cls, reload, msg }) {
 const [eqs,setEqs]=useState([]); const [px,setPx]=useState(""); const [pl,setPl]=useState(""); const [ci,setCi]=useState("");
 const [editId,setEditId]=useState(null); const [ePx,setEPx]=useState(""); const [ePl,setEPl]=useState(""); const [eCi,setECi]=useState("");
@@ -950,7 +984,7 @@ return <><h2 style={{ fontSize:20, marginBottom:20 }}>Meu Perfil</h2>
 <div style={{ fontSize:12, color:T.t2 }}>Nome</div><div style={{ fontWeight:600, fontSize:18 }}>{profile.name}</div>
 <div style={{ fontSize:12, color:T.t2, marginTop:8 }}>E-mail</div><div>{profile.email}</div>
 <div style={{ fontSize:12, color:T.t2, marginTop:8 }}>Perfil</div>
-<span className="badge" style={{ background:T.ac+"20", color:T.ac, marginTop:4 }}>{profile.role==="gestor"?"Gestor de Manutenção":"Motorista"}</span></div>
+<span className="badge" style={{ background:T.ac+"20", color:T.ac, marginTop:4 }}>{profile.role==="admin"?"Administrador":profile.role==="gestor"?"Gestor de Manutenção":"Motorista"}</span></div>
 <div className="card">
 <div style={{ fontWeight:600, marginBottom:12 }}>Alterar Senha</div>
 <div style={{ marginBottom:10 }}><input className="inp" type="password" placeholder="Nova senha (mín. 6)" value={np} onChange={e=>setNp(e.target.value)} /></div>
