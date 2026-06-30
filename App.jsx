@@ -745,7 +745,7 @@ className="inp finp" style={{ padding:"7px 12px", fontSize:12, width:200, minWid
 <option value="">Motorista</option>{[...new Set(kan.map(c=>c.driver_name))].sort().map(v=><option key={v} value={v}>{v}</option>)}</select>
 <select className="inp finp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtUr} onChange={e=>setFiltUr(e.target.value)}>
 <option value="">Urgência</option><option value="problem">⚠ Com problemas</option><option value="ok">✓ Sem problemas</option></select>
-<input type="date" className="inp finp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:130 }} value={filtDate} onChange={e=>setFiltDate(e.target.value)} />
+<input type={filtDate?"date":"text"} placeholder="📅 Data" className="inp finp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:130 }} value={filtDate} onChange={e=>setFiltDate(e.target.value)} onFocus={e=>{e.target.type="date";}} onBlur={e=>{if(!e.target.value) e.target.type="text";}} />
 {hasKFilter && <button className="btn bg bs" style={{ color:T.r, fontSize:10 }} onClick={clearKFilters}>✕ Limpar</button>}
 </div>
 {/* Kanban Grid */}
@@ -807,6 +807,12 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Motorista</div><div style={{ fontWeight:600 }}>{selCard.driver_name}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Formulário</div><div>{selCard.form_name}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Itens</div><div>{selCard.total_items} total — <span style={{ color:T.r }}>{selCard.problem_count} com problema</span></div></div>
+
+{selCard.conclusion_text && <div style={{ marginBottom:12, padding:"10px 14px", background:T.g+"12", border:`1px solid ${T.g}30`, borderRadius:8 }}>
+<div style={{ fontSize:11, fontWeight:700, color:T.g, marginBottom:4 }}>✅ Conclusão do Gestor{selCard.assigned_to_name ? ` — ${selCard.assigned_to_name}` : ""}</div>
+<div style={{ fontSize:12, color:T.t2 }}>{selCard.conclusion_text}</div>
+{selCard.concluded_at && <div style={{ fontSize:10, color:T.t3, marginTop:4 }}>{new Date(selCard.concluded_at).toLocaleDateString("pt-BR")} às {new Date(selCard.concluded_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
+</div>}
 
 {/* Itens individuais do checklist */}
 {cardResps.length > 0 && <div style={{ marginBottom:12 }}>
