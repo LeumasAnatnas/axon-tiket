@@ -280,20 +280,35 @@ const [selHist, setSelHist] = useState(null);
 const [histResps, setHistResps] = useState([]);
 const [histRespLd, setHistRespLd] = useState(false);
 const [reinsps, setReinsps] = useState([]);
+const [pendingEvals, setPendingEvals] = useState([]);
+const [evalModal, setEvalModal] = useState(null);
+const [evalStatus, setEvalStatus] = useState("");
+const [evalRating, setEvalRating] = useState(5);
+const [evalNotes, setEvalNotes] = useState("");
 
 const load = async () => {
 try {
-const [eq, cl, ch, ri] = await Promise.all([
+const [eq, cl, ch, ri, pe] = await Promise.all([
 sb.q("equipment", tk, "active=eq.true&select=*&order=prefix"),
 sb.q("classes", tk, "active=eq.true&select=*&order=name"),
 sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&order=submitted_at.desc&limit=20`),
 sb.q("checklists", tk, `driver_id=eq.${profile.id}&reinspection_requested=eq.true&select=id,equipment_id,form_id,reinspection_notes`),
+sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&status=eq.atendido&eval_status=is.null&order=submitted_at.desc`),
 ]);
-setEqs(eq); setCls(cl); setHist(ch); setReinsps(ri||[]);
+setEqs(eq); setCls(cl); setHist(ch); setReinsps(ri||[]); setPendingEvals(pe||[]);
 } catch (e) { msg("Erro: " + e.message, "error"); }
 finally { setLd(false); }
 };
 useEffect(() => { load(); }, []);
+
+const submitEval = async () => {
+  if(!evalStatus) return msg("Selecione a classificação","error");
+  if(evalStatus !== "totalmente_atendido" && !evalNotes.trim()) return msg("Observação obrigatória","error");
+  try{
+    await sb.rpc("submit_evaluation",{p_checklist_id:evalModal.id,p_status:evalStatus,p_rating:evalRating,p_notes:evalNotes.trim()||null},tk);
+    msg("Avaliação enviada!"); setEvalModal(null); setEvalStatus(""); setEvalRating(5); setEvalNotes(""); load();
+  }catch(err){msg(err.message,"error");}
+};
 
 const pickEq = async (eq) => {
 setSelEq(eq);
@@ -364,6 +379,15 @@ return <>
 {v === "home" && <>
 <h2 style={{ fontSize: 20, marginBottom: 4 }}>Olá, {profile.name.split(" ")[0]} 👋</h2>
 <p style={{ color: T.t2, fontSize: 14, marginBottom: 16 }}>Selecione um equipamento para iniciar</p>
+{/* Avaliações pendentes */}
+{pendingEvals.length > 0 && <div style={{ marginBottom:16 }}>
+<div style={{ fontSize:12, fontWeight:700, color:T.p, textTransform:"uppercase", letterSpacing:.5, marginBottom:8 }}>⭐ Avaliações pendentes ({pendingEvals.length})</div>
+{pendingEvals.map(pe => <div key={pe.id} className="card" onClick={()=>{setEvalModal(pe);setEvalStatus("");setEvalRating(5);setEvalNotes("");}} style={{ cursor:"pointer", borderColor:T.p+"60", marginBottom:8 }}>
+<div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+<div><div style={{ fontWeight:700, fontSize:14, fontFamily:"'JetBrains Mono'" }}>{pe.equipment_prefix} <span style={{ color:T.t3 }}>— {pe.equipment_plate}</span></div>
+<div style={{ fontSize:12, color:T.p, marginTop:4 }}>Atendido — toque para avaliar</div></div>
+<span style={{ color:T.p, fontSize:20 }}>⭐</span></div></div>)}
+</div>}
 {/* Alertas de re-inspeção */}
 {reinsps.length > 0 && <div style={{ marginBottom:16 }}>
 <div style={{ fontSize:12, fontWeight:700, color:T.y, textTransform:"uppercase", letterSpacing:.5, marginBottom:8 }}>🔄 Re-inspeções solicitadas</div>
@@ -458,6 +482,8 @@ return <div key={cl.id} className="card" style={{ marginBottom: 10, cursor:"poin
 <span style={{ fontSize:10, color:T.ac }}>ver detalhes →</span></div></div>
 {cl.reinspection_requested && <div style={{ marginTop:8, fontSize:12, color:T.y }}>⚠ Re-inspeção: {cl.reinspection_notes}</div>}
 {cl.conclusion_text && <div style={{ marginTop:8, fontSize:12, color:T.g }}>✓ {cl.conclusion_text}</div>}
+{cl.eval_status && <div style={{ marginTop:6, fontSize:11, color:T.p }}>⭐ {cl.eval_rating}/10 — {cl.eval_status==="totalmente_atendido"?"Totalmente atendido":cl.eval_status==="parcialmente"?"Parcialmente":"Não atendido"}</div>}
+{cl.status==="atendido" && !cl.eval_status && <div style={{ marginTop:6, fontSize:11, color:T.p, fontWeight:600 }}>⭐ Pendente de avaliação</div>}
 </div>;
 })}
 
@@ -474,6 +500,12 @@ return <div key={cl.id} className="card" style={{ marginBottom: 10, cursor:"poin
 <div>{new Date(selHist.submitted_at).toLocaleDateString("pt-BR")} às {new Date(selHist.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div></div>
 {selHist.conclusion_text && <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Conclusão</div><div style={{ color:T.g }}>✓ {selHist.conclusion_text}</div></div>}
 {selHist.reinspection_requested && <div style={{ marginBottom:8, color:T.y }}>⚠ Re-inspeção solicitada: {selHist.reinspection_notes}</div>}
+{selHist.eval_status && <div style={{ marginBottom:8, padding:"10px 14px", background:T.p+"15", border:`1px solid ${T.p}40`, borderRadius:8 }}>
+<div style={{ fontSize:12, color:T.t2, marginBottom:4 }}>Avaliação</div>
+<div style={{ fontWeight:700, color:T.p }}>⭐ {selHist.eval_rating}/10 — {selHist.eval_status==="totalmente_atendido"?"Totalmente atendido":selHist.eval_status==="parcialmente"?"Parcialmente atendido":"Não atendido"}</div>
+{selHist.eval_notes && <div style={{ fontSize:12, color:T.t2, marginTop:4, fontStyle:"italic" }}>💬 {selHist.eval_notes}</div>}
+<div style={{ fontSize:10, color:T.t3, marginTop:4 }}>{new Date(selHist.eval_at).toLocaleDateString("pt-BR")} às {new Date(selHist.eval_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
+</div>}
 <div style={{ fontSize:12, fontWeight:700, color:T.t2, textTransform:"uppercase", letterSpacing:.5, marginTop:12, marginBottom:8 }}>Respostas</div>
 {histRespLd ? <div style={{ textAlign:"center", padding:12 }}><span className="sp" style={{width:16,height:16}}/></div>
 : histResps.length === 0 ? <div style={{ fontSize:12, color:T.t3 }}>Nenhuma resposta encontrada</div>
@@ -493,6 +525,29 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
 </div></div>}
 </>}
 {v === "m_pw" && <PwChange msg={msg} />}
+
+{/* Evaluation Modal */}
+{evalModal && <div style={{ position:"fixed", inset:0, background:"#000a", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setEvalModal(null)}>
+<div className="card fi" style={{ maxWidth:440, width:"100%", maxHeight:"85vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+<div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
+<h3 style={{ fontSize:16 }}>⭐ Avaliar Atendimento</h3>
+<button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={()=>setEvalModal(null)}>✕</button></div>
+<div style={{ marginBottom:12 }}><div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{evalModal.equipment_prefix} — {evalModal.equipment_plate}</div>
+<div style={{ fontSize:12, color:T.t2 }}>{evalModal.form_name}</div></div>
+<div className="lbl">Como foi o atendimento?</div>
+<div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
+{[["totalmente_atendido","✅ Totalmente atendido",T.g],["parcialmente","⚠️ Parcialmente atendido",T.y],["nao_atendido","❌ Não atendido",T.r]].map(([v,l,c])=>
+<button key={v} onClick={()=>setEvalStatus(v)} style={{ padding:"10px 14px", borderRadius:8, border:`2px solid ${evalStatus===v?c:T.bd}`, background:evalStatus===v?c+"15":"transparent", color:evalStatus===v?c:T.t2, fontFamily:"'DM Sans'", fontSize:13, fontWeight:600, cursor:"pointer", textAlign:"left" }}>{l}</button>)}
+</div>
+<div className="lbl">Nota (0 a 10)</div>
+<div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:16 }}>
+{[...Array(11)].map((_,i)=><button key={i} onClick={()=>setEvalRating(i)} style={{ width:32, height:32, borderRadius:8, border:`2px solid ${evalRating===i?T.ac:T.bd}`, background:evalRating===i?T.ac:"transparent", color:evalRating===i?T.bg:T.t2, fontFamily:"'JetBrains Mono'", fontSize:13, fontWeight:700, cursor:"pointer" }}>{i}</button>)}
+</div>
+{evalStatus && evalStatus !== "totalmente_atendido" && <>
+<div className="lbl">Observação (obrigatória)</div>
+<textarea className="inp" rows={3} placeholder="Descreva o que não foi atendido..." value={evalNotes} onChange={e=>setEvalNotes(e.target.value)} style={{ resize:"vertical", fontSize:13, marginBottom:16 }} /></>}
+<button className="btn bp bw" onClick={submitEval}>Enviar Avaliação</button>
+</div></div>}
 </>}
 </div>
 <nav className="nav">
@@ -776,6 +831,13 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
 {selCard.reinspection_requested && <div style={{ marginTop:16, padding:"10px 14px", background:T.y+"15", border:`1px solid ${T.y}40`, borderRadius:8 }}>
 <div style={{ fontSize:11, fontWeight:700, color:T.y }}>🔄 Re-inspeção solicitada</div>
 <div style={{ fontSize:12, color:T.t2, marginTop:4 }}>{selCard.reinspection_notes}</div></div>}
+
+{selCard.eval_status && <div style={{ marginTop:16, padding:"10px 14px", background:T.p+"15", border:`1px solid ${T.p}40`, borderRadius:8 }}>
+<div style={{ fontSize:11, fontWeight:700, color:T.p }}>⭐ Avaliação do Motorista</div>
+<div style={{ fontSize:14, fontWeight:700, color:T.p, marginTop:4 }}>{selCard.eval_rating}/10 — {selCard.eval_status==="totalmente_atendido"?"Totalmente atendido":selCard.eval_status==="parcialmente"?"Parcialmente atendido":"Não atendido"}</div>
+{selCard.eval_notes && <div style={{ fontSize:12, color:T.t2, marginTop:4, fontStyle:"italic" }}>💬 {selCard.eval_notes}</div>}
+<div style={{ fontSize:10, color:T.t3, marginTop:4 }}>{selCard.eval_at && new Date(selCard.eval_at).toLocaleDateString("pt-BR")}</div></div>}
+{selCard.status==="atendido" && !selCard.eval_status && <div style={{ marginTop:16, padding:"8px 14px", background:T.p+"10", border:`1px dashed ${T.p}40`, borderRadius:8, fontSize:11, color:T.p }}>⭐ Aguardando avaliação do motorista</div>}
 
 <div style={{ marginTop:20, fontSize:12, fontWeight:700, color:T.t2, textTransform:"uppercase", marginBottom:8 }}>Mover para</div>
 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
@@ -1088,6 +1150,17 @@ return <>
 {/* By Equipment */}
 {data.by_equipment?.length > 0 && <Section title="Por Equipamento">
 {data.by_equipment.map(e => <Bar key={e.name} label={e.name+" ("+e.problems+" prob.)"} value={e.total} max={maxEquip} color="#3b82f6" />)}
+</Section>}
+{data.evaluation && <Section title="⭐ Avaliação do Atendimento">
+<div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:10, marginBottom:12 }}>
+<KPI icon="⭐" value={data.evaluation.avg_rating} label="NOTA MÉDIA" color={T.p} />
+<KPI icon="📝" value={data.evaluation.total_evaluated} label="AVALIADOS" color={T.g} />
+<KPI icon="⏳" value={data.evaluation.pending} label="PENDENTES" color={T.y} />
+</div>
+{(data.evaluation.totalmente>0||data.evaluation.parcialmente>0||data.evaluation.nao_atendido>0) && <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+{[["Totalmente",data.evaluation.totalmente,T.g],["Parcialmente",data.evaluation.parcialmente,T.y],["Não atendido",data.evaluation.nao_atendido,T.r]].map(([l,v,c])=>
+v>0 && <span key={l} className="badge" style={{ background:c+"20", color:c, fontSize:11 }}>{l}: {v}</span>)}
+</div>}
 </Section>}
 </>;
 }
