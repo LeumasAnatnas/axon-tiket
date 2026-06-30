@@ -631,7 +631,7 @@ const fmtDt = (iso) => new Date(iso).toLocaleString("pt-BR", { day:"2-digit", mo
 return <>
 <div className="topbar"><div className="logo">AXON TIKET</div>
 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-<span className="badge" style={{ background:T.ac+"20", color:T.ac }}>Gestor</span>
+<span className="badge" style={{ background:T.ac+"20", color:T.ac }}>{profile.role==="admin"?"Admin":"Gestor"}</span>
 <span style={{ fontSize:13, color:T.t2 }}>{profile.name}</span>
 <button className="btn bg bs" onClick={logout}>Sair</button></div></div>
 <div className="pg fi">
