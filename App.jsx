@@ -1211,78 +1211,129 @@ const maxProb = data.top_problems?.length ? data.top_problems[0].count : 0;
 const maxEquip = data.by_equipment?.length ? Math.max(...data.by_equipment.map(e=>e.total)) : 0;
 const maxGestor = data.by_gestor?.length ? Math.max(...data.by_gestor.map(g=>g.total)) : 0;
 
+const [showExport, setShowExport] = useState(false);
+const [expDriver, setExpDriver] = useState("");
+const [expFrom, setExpFrom] = useState("");
+const [expTo, setExpTo] = useState("");
+const [expLd, setExpLd] = useState(false);
+const [drivers, setDrivers] = useState([]);
+
+const openExport = async () => { setShowExport(true); if(!drivers.length) { const d=await sb.q("profiles",tk,"role=eq.motorista&active=eq.true&select=id,name&order=name"); setDrivers(d||[]); } };
+
 const loadScript = (url) => new Promise((res,rej) => { if(document.querySelector(`script[src="${url}"]`)) return res(); const s=document.createElement("script"); s.src=url; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
 
-const exportPDF = async () => {
+const generatePDF = async () => {
+  setExpLd(true);
   try {
-    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js");
-    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js");
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF(); let y = 15;
-    const periodLabel = days===7?"7 dias":days===30?"30 dias":days===90?"90 dias":"Todos";
-    doc.setFontSize(18); doc.text("AXON TIKET — Relatório", 14, y); y+=8;
-    doc.setFontSize(10); doc.setTextColor(100); doc.text(`Período: ${periodLabel} • Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`, 14, y); y+=10;
-    doc.setTextColor(0);
-    doc.autoTable({ startY:y, head:[["Métrica","Valor"]], body:[
-      ["Checklists",k.total],["Com Problemas",`${k.with_problems} (${pct}%)`],["Tempo Total Médio",`${k.avg_hours}h`],
-      ["Backlog Pendente",b.total_pendente||0],["Reação Média",`${s.avg_reaction_hours||0}h`],["Reação Pior Caso",`${s.max_reaction_hours||0}h`],
-      ["Atendimento Médio",`${s.avg_service_hours||0}h`],["Atendimento Pior Caso",`${s.max_service_hours||0}h`],
-    ], theme:"grid", headStyles:{fillColor:[0,212,255]}, styles:{fontSize:9} }); y=doc.lastAutoTable.finalY+10;
-    if(data.by_gestor?.length) { doc.setFontSize(12); doc.text("Desempenho por Gestor",14,y); y+=4;
-      doc.autoTable({ startY:y, head:[["Gestor","Checklists","Tempo Médio"]], body:data.by_gestor.map(g=>[g.name,g.total,g.avg_hours+"h"]), theme:"grid", headStyles:{fillColor:[0,212,255]}, styles:{fontSize:9} }); y=doc.lastAutoTable.finalY+10; }
-    if(data.top_problems?.length) { if(y>240){doc.addPage();y=15;} doc.setFontSize(12); doc.text("Top Problemas",14,y); y+=4;
-      doc.autoTable({ startY:y, head:[["Item","Ocorrências"]], body:data.top_problems.map(t=>[t.label,t.count]), theme:"grid", headStyles:{fillColor:[239,68,68]}, styles:{fontSize:9} }); y=doc.lastAutoTable.finalY+10; }
-    if(data.by_equipment?.length) { if(y>240){doc.addPage();y=15;} doc.setFontSize(12); doc.text("Por Equipamento",14,y); y+=4;
-      doc.autoTable({ startY:y, head:[["Equipamento","Total","Problemas"]], body:data.by_equipment.map(e=>[e.name,e.total,e.problems]), theme:"grid", headStyles:{fillColor:[59,130,246]}, styles:{fontSize:9} }); y=doc.lastAutoTable.finalY+10; }
-    const ev = data.evaluation||{};
-    if(ev.total_evaluated>0) { if(y>240){doc.addPage();y=15;} doc.setFontSize(12); doc.text("Avaliações",14,y); y+=4;
-      doc.autoTable({ startY:y, head:[["Métrica","Valor"]], body:[
-        ["Nota Média",ev.avg_rating],["Avaliados",ev.total_evaluated],["Pendentes",ev.pending],
-        ["Totalmente",ev.totalmente],["Parcialmente",ev.parcialmente],["Não atendido",ev.nao_atendido],
-      ], theme:"grid", headStyles:{fillColor:[139,92,246]}, styles:{fontSize:9} }); y=doc.lastAutoTable.finalY+10; }
-    if(data.recent_feedback?.length) { if(y>220){doc.addPage();y=15;} doc.setFontSize(12); doc.text("Feedback dos Motoristas",14,y); y+=4;
-      doc.autoTable({ startY:y, head:[["Motorista","Equipamento","Gestor","Nota","Status","Comentário"]], body:data.recent_feedback.map(f=>[f.driver,f.equipment,f.gestor||"",f.rating,f.status==="totalmente_atendido"?"Totalmente":f.status==="parcialmente"?"Parcialmente":"Não atendido",f.notes||""]), theme:"grid", headStyles:{fillColor:[139,92,246]}, styles:{fontSize:8}, columnStyles:{5:{cellWidth:50}} }); }
-    doc.save(`axon-tiket-relatorio-${periodLabel.replace(/ /g,"")}.pdf`);
-  } catch(e) { console.error(e); alert("Erro ao gerar PDF: "+e.message); }
+    const r = await sb.rpc("get_audit_report",{p_driver_id:expDriver||null,p_from:expFrom||null,p_to:expTo||null},tk);
+    const report = typeof r==="string"?JSON.parse(r):r;
+    const cls = report.checklists||[];
+    if(!cls.length) { alert("Nenhum checklist encontrado no período."); setExpLd(false); return; }
+    const drv = expDriver ? drivers.find(d=>d.id===expDriver)?.name : "Todos";
+    const ansLabel = a => a==="ok"?"✅ OK":a==="problem"?"⚠️ Problema":"➖ N/A";
+    const stLabel = s => s==="atendido"?"Atendido":s==="em_atendimento"?"Em Atendimento":s==="triagem"?"Triagem":"Processado";
+    const fmtDt = iso => iso?new Date(iso).toLocaleDateString("pt-BR")+" "+new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"—";
+    let html = `<html><head><meta charset="utf-8"><title>AXON TIKET — Dossiê</title><style>
+      *{margin:0;padding:0;box-sizing:border-box} body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#222;padding:20px;max-width:900px;margin:auto}
+      h1{font-size:18px;color:#0099bb;margin-bottom:4px} .sub{font-size:10px;color:#666;margin-bottom:20px}
+      .ck{border:1px solid #ccc;border-radius:8px;padding:14px;margin-bottom:16px;page-break-inside:avoid}
+      .ck-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;border-bottom:2px solid #0099bb;padding-bottom:8px}
+      .ck-head h2{font-size:14px;color:#0099bb;margin:0} .ck-head .meta{font-size:10px;color:#555;text-align:right}
+      table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10px} th{background:#e8f7fc;text-align:left;padding:5px 8px;border:1px solid #ccc;font-weight:700}
+      td{padding:5px 8px;border:1px solid #ddd;vertical-align:top} .prob{background:#fff0f0} .ok{background:#f0fff0}
+      .status-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-weight:700;font-size:10px}
+      .hist{margin:8px 0} .hist-item{padding:4px 0;border-bottom:1px solid #eee;font-size:10px}
+      .eval-box{background:#f5f0ff;border:1px solid #c4b5fd;border-radius:6px;padding:8px 12px;margin:8px 0}
+      .photo{width:80px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #ccc;margin:4px 4px 0 0}
+      @media print{body{padding:10px} .ck{break-inside:avoid}}
+    </style></head><body>`;
+    html += `<h1>AXON TIKET — Dossiê de Auditoria</h1>`;
+    html += `<div class="sub">Motorista: <b>${drv}</b> • Período: <b>${expFrom||"—"} a ${expTo||"—"}</b> • ${cls.length} checklist(s) • Gerado em ${fmtDt(new Date().toISOString())}</div>`;
+    for (const c of cls) {
+      const problems = (c.items||[]).filter(i=>i.answer==="problem");
+      html += `<div class="ck"><div class="ck-head"><div><h2>${c.equip_prefix} — ${c.equip_plate}</h2><div style="font-size:11px;margin-top:2px">${c.form_name} • ${c.class_name}</div></div>`;
+      html += `<div class="meta">Motorista: <b>${c.driver_name}</b><br>${fmtDt(c.submitted_at)}<br><span class="status-badge" style="background:${c.status==="atendido"?"#d1fae5;color:#065f46":c.status==="em_atendimento"?"#dbeafe;color:#1e40af":"#fef9c3;color:#854d0e"}">${stLabel(c.status)}</span></div></div>`;
+      html += `<table><tr><th style="width:40%">Item</th><th style="width:12%">Resultado</th><th>Observação</th><th style="width:15%">Foto</th></tr>`;
+      for (const it of (c.items||[])) {
+        const cls2 = it.answer==="problem"?"prob":it.answer==="ok"?"ok":"";
+        html += `<tr class="${cls2}"><td>${it.label}</td><td>${ansLabel(it.answer)}</td><td>${it.notes||"—"}</td>`;
+        html += `<td>${it.photo_url?`<img class="photo" src="${it.photo_url}" />`:"—"}</td></tr>`;
+      }
+      html += `</table>`;
+      if(problems.length) html += `<div style="font-size:10px;color:#dc2626;font-weight:700;margin:4px 0">⚠ ${problems.length} problema(s) identificado(s)</div>`;
+      if((c.history||[]).length) {
+        html += `<div class="hist"><div style="font-weight:700;font-size:10px;margin-bottom:4px">📋 Histórico de Movimentações</div>`;
+        for (const h of c.history) html += `<div class="hist-item"><b>${fmtDt(h.created_at)}</b> — ${h.action} — <i>${h.performed_by_name}</i>${h.notes?` — "${h.notes}"`:""}</div>`;
+        html += `</div>`;
+      }
+      if(c.conclusion_text) html += `<div style="margin:6px 0;padding:6px 10px;background:#f0fdf4;border:1px solid #86efac;border-radius:4px;font-size:10px"><b>✅ Conclusão (${c.gestor_name||"Gestor"}):</b> ${c.conclusion_text} — ${fmtDt(c.concluded_at)}</div>`;
+      if(c.eval_status) html += `<div class="eval-box"><b>⭐ Avaliação do Motorista:</b> ${c.eval_rating}/10 — ${c.eval_status==="totalmente_atendido"?"Totalmente atendido":c.eval_status==="parcialmente"?"Parcialmente":"Não atendido"}${c.eval_notes?` — "${c.eval_notes}"`:""}</div>`;
+      html += `</div>`;
+    }
+    html += `</body></html>`;
+    const w = window.open("","_blank"); w.document.write(html); w.document.close();
+  } catch(e) { alert("Erro: "+e.message); }
+  setExpLd(false);
 };
 
-const exportExcel = async () => {
+const generateExcel = async () => {
+  setExpLd(true);
   try {
     await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
-    const XLSX = window.XLSX; const wb = XLSX.utils.book_new();
-    const periodLabel = days===7?"7 dias":days===30?"30 dias":days===90?"90 dias":"Todos";
-    const kpis = [["Métrica","Valor"],["Período",periodLabel],["Checklists",k.total],["Com Problemas",k.with_problems],["% Problemas",pct+"%"],
-      ["Tempo Total Médio (h)",k.avg_hours],["Backlog Pendente",b.total_pendente||0],
-      ["Reação Média (h)",s.avg_reaction_hours||0],["Reação Pior Caso (h)",s.max_reaction_hours||0],
-      ["Atendimento Médio (h)",s.avg_service_hours||0],["Atendimento Pior Caso (h)",s.max_service_hours||0]];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kpis), "KPIs");
-    if(data.daily?.length) { const d=[["Data","Total","Problemas"],...data.daily.map(d=>[d.day,d.total,d.problems])]; XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(d), "Por Dia"); }
-    if(data.by_gestor?.length) { const g=[["Gestor","Checklists","Tempo Atendimento Médio (h)"],...data.by_gestor.map(g=>[g.name,g.total,g.avg_hours])]; XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(g), "Por Gestor"); }
-    if(data.top_problems?.length) { const t=[["Item","Ocorrências"],...data.top_problems.map(t=>[t.label,t.count])]; XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(t), "Problemas"); }
-    if(data.by_equipment?.length) { const e=[["Equipamento","Total","Problemas"],...data.by_equipment.map(e=>[e.name,e.total,e.problems])]; XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(e), "Equipamentos"); }
-    const ev = data.evaluation||{};
-    if(ev.total_evaluated>0||data.recent_feedback?.length) {
-      const rows=[["Nota Média",ev.avg_rating],["Avaliados",ev.total_evaluated],["Pendentes",ev.pending],
-        ["Totalmente",ev.totalmente],["Parcialmente",ev.parcialmente],["Não atendido",ev.nao_atendido],
-        [],[],["Motorista","Equipamento","Gestor","Nota","Status","Comentário","Data Checklist","Data Avaliação"],
-        ...(data.recent_feedback||[]).map(f=>[f.driver,f.equipment,f.gestor||"",f.rating,f.status==="totalmente_atendido"?"Totalmente":f.status==="parcialmente"?"Parcialmente":"Não atendido",f.notes||"",f.submitted_at?new Date(f.submitted_at).toLocaleDateString("pt-BR"):"",f.eval_at?new Date(f.eval_at).toLocaleDateString("pt-BR"):""])];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Avaliações");
-    }
-    XLSX.writeFile(wb, `axon-tiket-relatorio-${periodLabel.replace(/ /g,"")}.xlsx`);
-  } catch(e) { console.error(e); alert("Erro ao gerar Excel: "+e.message); }
+    const XLSX = window.XLSX;
+    const r = await sb.rpc("get_audit_report",{p_driver_id:expDriver||null,p_from:expFrom||null,p_to:expTo||null},tk);
+    const report = typeof r==="string"?JSON.parse(r):r;
+    const cls = report.checklists||[];
+    if(!cls.length) { alert("Nenhum checklist encontrado."); setExpLd(false); return; }
+    const wb = XLSX.utils.book_new();
+    const ckRows = [["Equipamento","Placa","Classe","Formulário","Motorista","Data Envio","Status","Gestor","Data Conclusão","Conclusão","Problemas","Avaliação","Nota","Obs. Avaliação"],
+      ...cls.map(c=>[c.equip_prefix,c.equip_plate,c.class_name,c.form_name,c.driver_name,
+        c.submitted_at?new Date(c.submitted_at).toLocaleString("pt-BR"):"",c.status,c.gestor_name||"",
+        c.concluded_at?new Date(c.concluded_at).toLocaleString("pt-BR"):"",c.conclusion_text||"",
+        (c.items||[]).filter(i=>i.answer==="problem").length,
+        c.eval_status==="totalmente_atendido"?"Totalmente":c.eval_status==="parcialmente"?"Parcialmente":c.eval_status==="nao_atendido"?"Não atendido":"",
+        c.eval_rating!=null?c.eval_rating:"",c.eval_notes||""])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ckRows), "Checklists");
+    const itemRows = [["Equipamento","Motorista","Data Envio","Item","Resultado","Observação","URL Foto"],
+      ...cls.flatMap(c=>(c.items||[]).map(i=>[c.equip_prefix+" "+c.equip_plate,c.driver_name,
+        c.submitted_at?new Date(c.submitted_at).toLocaleString("pt-BR"):"",
+        i.label,i.answer==="ok"?"OK":i.answer==="problem"?"Problema":"N/A",i.notes||"",i.photo_url||""]))];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(itemRows), "Respostas");
+    const histRows = [["Equipamento","Data Checklist","Ação","De","Para","Responsável","Observação","Data"],
+      ...cls.flatMap(c=>(c.history||[]).map(h=>[c.equip_prefix+" "+c.equip_plate,
+        c.submitted_at?new Date(c.submitted_at).toLocaleString("pt-BR"):"",
+        h.action,h.from_status||"",h.to_status||"",h.performed_by_name||"",h.notes||"",
+        h.created_at?new Date(h.created_at).toLocaleString("pt-BR"):""]))];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(histRows), "Histórico");
+    XLSX.writeFile(wb, `axon-tiket-dados-${expFrom||"all"}-${expTo||"all"}.xlsx`);
+  } catch(e) { alert("Erro: "+e.message); }
+  setExpLd(false);
 };
 
 return <>
+{showExport && <div style={{ position:"fixed", inset:0, background:"#000a", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={()=>setShowExport(false)}>
+<div className="card fi" style={{ maxWidth:420, width:"100%" }} onClick={e=>e.stopPropagation()}>
+<div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}><h3 style={{ fontSize:16 }}>📥 Exportar Relatório</h3>
+<button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={()=>setShowExport(false)}>✕</button></div>
+<div className="lbl">Motorista</div>
+<select className="inp" style={{ marginBottom:10 }} value={expDriver} onChange={e=>setExpDriver(e.target.value)}>
+<option value="">Todos os motoristas</option>{drivers.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select>
+<div style={{ display:"flex", gap:8, marginBottom:16 }}>
+<div style={{ flex:1 }}><div className="lbl">De</div><input type="date" className="inp" value={expFrom} onChange={e=>setExpFrom(e.target.value)} /></div>
+<div style={{ flex:1 }}><div className="lbl">Até</div><input type="date" className="inp" value={expTo} onChange={e=>setExpTo(e.target.value)} /></div></div>
+{expLd ? <div style={{ textAlign:"center", padding:20 }}><div className="sp"/><div style={{ fontSize:11, color:T.t2, marginTop:8 }}>Gerando relatório...</div></div>
+: <div style={{ display:"flex", gap:8 }}>
+<button className="btn bp bw" style={{ flex:1 }} onClick={generatePDF}>📄 PDF (Auditoria)</button>
+<button className="btn bg bw" style={{ flex:1, border:`1px solid ${T.ac}`, color:T.ac }} onClick={generateExcel}>📊 Excel (Dados)</button></div>}
+</div></div>}
 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:14 }}>
 <h2 style={{ fontSize:20, margin:0 }}>Relatórios</h2>
 <div style={{ display:"flex", gap:2, background:T.c2, padding:3, borderRadius:8 }}>
 {[[7,"7d"],[30,"30d"],[90,"90d"],[9999,"Todos"]].map(([d,lb]) =>
 <button key={d} onClick={()=>setDays(d)} style={{ padding:"5px 12px", border:"none", borderRadius:6, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans'", background:days===d?T.ac:"transparent", color:days===d?T.bg:T.t2 }}>{lb}</button>)}
 </div>
-<div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
-<button className="btn bg bs" style={{ fontSize:11, padding:"5px 12px" }} onClick={exportPDF}>📄 PDF</button>
-<button className="btn bg bs" style={{ fontSize:11, padding:"5px 12px" }} onClick={exportExcel}>📊 Excel</button>
-</div></div>
+<button className="btn bg bs" style={{ fontSize:11, padding:"5px 14px", marginLeft:"auto", border:`1px solid ${T.ac}`, color:T.ac }} onClick={openExport}>📥 Exportar</button>
+</div>
 {/* KPIs Gerais */}
 <div className="kpig">
 <Kpi icon="📋" label="Checklists" value={k.total} color="#3b82f6" />
