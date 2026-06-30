@@ -481,7 +481,7 @@ return <div key={cl.id} className="card" style={{ marginBottom: 10, cursor:"poin
 <span className="badge" style={{ background:col?.color+"20", color:col?.color }}>{col?.icon} {col?.label}</span>
 <span style={{ fontSize:10, color:T.ac }}>ver detalhes →</span></div></div>
 {cl.reinspection_requested && <div style={{ marginTop:8, fontSize:12, color:T.y }}>⚠ Re-inspeção: {cl.reinspection_notes}</div>}
-{cl.conclusion_text && <div style={{ marginTop:8, fontSize:12, color:T.g }}>✓ {cl.conclusion_text}</div>}
+{cl.conclusion_text && <div style={{ marginTop:8, fontSize:12, color:T.g }}>✓ {cl.gestor_name ? `${cl.gestor_name}: ` : ""}{cl.conclusion_text}</div>}
 {cl.eval_status && <div style={{ marginTop:6, fontSize:11, color:T.p }}>⭐ {cl.eval_rating}/10 — {cl.eval_status==="totalmente_atendido"?"Totalmente atendido":cl.eval_status==="parcialmente"?"Parcialmente":"Não atendido"}</div>}
 {cl.status==="atendido" && !cl.eval_status && <div style={{ marginTop:6, fontSize:11, color:T.p, fontWeight:600 }}>⭐ Pendente de avaliação</div>}
 </div>;
@@ -498,10 +498,12 @@ return <div key={cl.id} className="card" style={{ marginBottom: 10, cursor:"poin
 <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Formulário</div><div style={{ fontWeight:600 }}>{selHist.form_name}</div></div>
 <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Enviado em</div>
 <div>{new Date(selHist.submitted_at).toLocaleDateString("pt-BR")} às {new Date(selHist.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div></div>
-{selHist.conclusion_text && <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Conclusão</div><div style={{ color:T.g }}>✓ {selHist.conclusion_text}</div></div>}
+{selHist.conclusion_text && <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Conclusão do Gestor{selHist.gestor_name ? ` — ${selHist.gestor_name}` : ""}</div><div style={{ color:T.g }}>✓ {selHist.conclusion_text}</div>
+{selHist.concluded_at && <div style={{ fontSize:10, color:T.t3, marginTop:2 }}>{new Date(selHist.concluded_at).toLocaleDateString("pt-BR")} às {new Date(selHist.concluded_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
+</div>}
 {selHist.reinspection_requested && <div style={{ marginBottom:8, color:T.y }}>⚠ Re-inspeção solicitada: {selHist.reinspection_notes}</div>}
 {selHist.eval_status && <div style={{ marginBottom:8, padding:"10px 14px", background:T.p+"15", border:`1px solid ${T.p}40`, borderRadius:8 }}>
-<div style={{ fontSize:12, color:T.t2, marginBottom:4 }}>Avaliação</div>
+<div style={{ fontSize:12, color:T.t2, marginBottom:4 }}>Como você avaliou este atendimento</div>
 <div style={{ fontWeight:700, color:T.p }}>⭐ {selHist.eval_rating}/10 — {selHist.eval_status==="totalmente_atendido"?"Totalmente atendido":selHist.eval_status==="parcialmente"?"Parcialmente atendido":"Não atendido"}</div>
 {selHist.eval_notes && <div style={{ fontSize:12, color:T.t2, marginTop:4, fontStyle:"italic" }}>💬 {selHist.eval_notes}</div>}
 <div style={{ fontSize:10, color:T.t3, marginTop:4 }}>{new Date(selHist.eval_at).toLocaleDateString("pt-BR")} às {new Date(selHist.eval_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
@@ -533,7 +535,15 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
 <h3 style={{ fontSize:16 }}>⭐ Avaliar Atendimento</h3>
 <button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={()=>setEvalModal(null)}>✕</button></div>
 <div style={{ marginBottom:12 }}><div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{evalModal.equipment_prefix} — {evalModal.equipment_plate}</div>
-<div style={{ fontSize:12, color:T.t2 }}>{evalModal.form_name}</div></div>
+<div style={{ fontSize:12, color:T.t2 }}>{evalModal.form_name}</div>
+<div style={{ fontSize:11, color:T.t3, marginTop:4 }}>Enviado em {new Date(evalModal.submitted_at).toLocaleDateString("pt-BR")} às {new Date(evalModal.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
+</div>
+{evalModal.gestor_name && <div style={{ marginBottom:12, padding:"10px 14px", background:T.g+"12", border:`1px solid ${T.g}30`, borderRadius:8 }}>
+<div style={{ fontSize:11, fontWeight:700, color:T.g, marginBottom:4 }}>✅ Conclusão do Gestor</div>
+<div style={{ fontSize:12, color:T.t1 }}>{evalModal.gestor_name}</div>
+{evalModal.concluded_at && <div style={{ fontSize:10, color:T.t3, marginTop:2 }}>{new Date(evalModal.concluded_at).toLocaleDateString("pt-BR")} às {new Date(evalModal.concluded_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
+{evalModal.conclusion_text && <div style={{ fontSize:12, color:T.t2, marginTop:6, fontStyle:"italic" }}>💬 {evalModal.conclusion_text}</div>}
+</div>}
 <div className="lbl">Como foi o atendimento?</div>
 <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
 {[["totalmente_atendido","✅ Totalmente atendido",T.g],["parcialmente","⚠️ Parcialmente atendido",T.y],["nao_atendido","❌ Não atendido",T.r]].map(([v,l,c])=>
@@ -1153,9 +1163,9 @@ return <>
 </Section>}
 {data.evaluation && <Section title="⭐ Avaliação do Atendimento">
 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:10, marginBottom:12 }}>
-<KPI icon="⭐" value={data.evaluation.avg_rating} label="NOTA MÉDIA" color={T.p} />
-<KPI icon="📝" value={data.evaluation.total_evaluated} label="AVALIADOS" color={T.g} />
-<KPI icon="⏳" value={data.evaluation.pending} label="PENDENTES" color={T.y} />
+<Kpi icon="⭐" value={data.evaluation.avg_rating} label="NOTA MÉDIA" color={T.p} />
+<Kpi icon="📝" value={data.evaluation.total_evaluated} label="AVALIADOS" color={T.g} />
+<Kpi icon="⏳" value={data.evaluation.pending} label="PENDENTES" color={T.y} />
 </div>
 {(data.evaluation.totalmente>0||data.evaluation.parcialmente>0||data.evaluation.nao_atendido>0) && <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
 {[["Totalmente",data.evaluation.totalmente,T.g],["Parcialmente",data.evaluation.parcialmente,T.y],["Não atendido",data.evaluation.nao_atendido,T.r]].map(([l,v,c])=>
