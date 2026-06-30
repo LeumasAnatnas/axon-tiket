@@ -1185,7 +1185,7 @@ return <>
 {data.by_gestor?.length > 0 && <Section title="Desempenho por Gestor">
 {data.by_gestor.map(g => <div key={g.name} style={{ marginBottom:10 }}>
 <Bar label={g.name} value={g.total} max={maxGestor} color="#3b82f6" />
-<div style={{ fontSize:10, color:T.t3, marginTop:-4, marginBottom:4 }}>Tempo médio: <span style={{ color:T.y, fontFamily:"'JetBrains Mono'" }}>{g.avg_hours}h</span></div>
+<div style={{ fontSize:10, color:T.t3, marginTop:-4, marginBottom:4 }}>Tempo de atendimento médio: <span style={{ color:T.y, fontFamily:"'JetBrains Mono'" }}>{g.avg_hours}h</span></div>
 </div>)}
 </Section>}
 {/* Daily */}
