@@ -13,7 +13,7 @@ return h;
 },
 async signIn(email, password) {
 const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, { method: "POST", headers: this.h(), body: JSON.stringify({ email, password }) });
-if (!r.ok) { const e = await r.json(); throw new Error(e.error_description === "Invalid login credentials" ? "E-mail ou senha incorretos" : (e.error_description || e.msg || "Login falhou")); }
+if (!r.ok) { const e = await r.json(); const em = e.error_description||e.message||e.msg||"Login falhou"; throw new Error(em.includes("Invalid login") ? "E-mail ou senha incorretos" : em); }
 return r.json();
 },
 async signOut(tk) { await fetch(`${SB_URL}/auth/v1/logout`, { method: "POST", headers: this.h(tk) }).catch(() => {}); },
@@ -601,6 +601,7 @@ const [period, setPeriod] = useState("7d");
 const [filtEq, setFiltEq] = useState("");
 const [filtDr, setFiltDr] = useState("");
 const [filtUr, setFiltUr] = useState("");
+const [filtDate, setFiltDate] = useState("");
 const [kSearch, setKSearch] = useState("");
 const [expandCol, setExpandCol] = useState({});
 const MAX_VIS = 6;
@@ -609,14 +610,14 @@ const lastKanLen = useRef(0);
 const beep = () => { try { const a=new AudioContext(),o=a.createOscillator(),g=a.createGain(); o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=0.3;o.start();o.stop(a.currentTime+0.15); } catch(e){} };
 const notifyNew = (n) => { if(n<=0) return; beep(); setNewCount(n); document.title=`(${n}) AXON TIKET`; if(Notification.permission==="granted") new Notification("AXON TIKET",{body:`${n} novo${n>1?"s":""} checklist${n>1?"s":""}`,icon:"/icon-192.png"}); };
 
-const relDt = (iso) => { const d=new Date(iso), now=new Date(), df=Math.floor((now-d)/864e5); return df===0?"Hoje":df===1?"Ontem":df<7?df+"d":d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}); };
+const calDays = (iso) => { const d=new Date(iso), n=new Date(); return Math.round((new Date(n.getFullYear(),n.getMonth(),n.getDate())-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/864e5); };
+const relDt = (iso) => { const d=new Date(iso), df=calDays(iso); const dt=d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}); const rel=df===0?"Hoje":df===1?"Ontem":df+"d"; return `${dt} (${rel})`; };
 const fmtTm = (iso) => new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 
 const kanFiltered = useMemo(() => {
-const now = new Date();
 return kan.filter(c => {
 if (c.reinspection_requested) return false;
-const df = Math.floor((now - new Date(c.submitted_at)) / 864e5);
+const df = calDays(c.submitted_at);
 if (period==="today"&&df>0) return false;
 if (period==="7d"&&df>7) return false;
 if (period==="30d"&&df>30) return false;
@@ -624,10 +625,11 @@ if (filtEq && c.equipment_prefix!==filtEq) return false;
 if (filtDr && c.driver_name!==filtDr) return false;
 if (filtUr==="problem" && c.problem_count===0) return false;
 if (filtUr==="ok" && c.problem_count>0) return false;
+if (filtDate) { const d=new Date(c.submitted_at); const ld=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; if(ld!==filtDate) return false; }
 if (kSearch) { const s=kSearch.toLowerCase(); if(!`${c.equipment_prefix} ${c.equipment_plate} ${c.driver_name} ${c.form_name}`.toLowerCase().includes(s)) return false; }
 return true;
 });
-}, [kan, period, filtEq, filtDr, filtUr, kSearch]);
+}, [kan, period, filtEq, filtDr, filtUr, filtDate, kSearch]);
 
 const kpis = useMemo(() => {
 const t=kanFiltered.filter(c=>c.status==="triagem").length;
@@ -636,8 +638,8 @@ const tProb=kanFiltered.filter(c=>c.status==="triagem"&&c.problem_count>0).lengt
 return { triagem:t, emAtendimento:ea, triagemProblema:tProb, atendidos:kanFiltered.filter(c=>c.status==="atendido").length };
 }, [kanFiltered]);
 
-const hasKFilter = filtEq||filtDr||filtUr||kSearch;
-const clearKFilters = () => { setFiltEq("");setFiltDr("");setFiltUr("");setKSearch(""); };
+const hasKFilter = filtEq||filtDr||filtUr||filtDate||kSearch;
+const clearKFilters = () => { setFiltEq("");setFiltDr("");setFiltUr("");setFiltDate("");setKSearch(""); };
 
 const load = async () => {
 try {
@@ -743,6 +745,7 @@ className="inp finp" style={{ padding:"7px 12px", fontSize:12, width:200, minWid
 <option value="">Motorista</option>{[...new Set(kan.map(c=>c.driver_name))].sort().map(v=><option key={v} value={v}>{v}</option>)}</select>
 <select className="inp finp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtUr} onChange={e=>setFiltUr(e.target.value)}>
 <option value="">Urgência</option><option value="problem">⚠ Com problemas</option><option value="ok">✓ Sem problemas</option></select>
+<input type="date" className="inp finp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:130 }} value={filtDate} onChange={e=>setFiltDate(e.target.value)} />
 {hasKFilter && <button className="btn bg bs" style={{ color:T.r, fontSize:10 }} onClick={clearKFilters}>✕ Limpar</button>}
 </div>
 {/* Kanban Grid */}
