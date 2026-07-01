@@ -608,6 +608,7 @@ const [kSearch, setKSearch] = useState("");
 const [expandCol, setExpandCol] = useState({});
 const MAX_VIS = 6;
 const [newCount, setNewCount] = useState(0);
+const [emailDomain, setEmailDomain] = useState("");
 const lastKanLen = useRef(0);
 const beep = () => { try { const a=new AudioContext(),o=a.createOscillator(),g=a.createGain(); o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=0.3;o.start();o.stop(a.currentTime+0.15); } catch(e){} };
 const notifyNew = (n) => { if(n<=0) return; beep(); setNewCount(n); document.title=`(${n}) AXON TIKET`; if(Notification.permission==="granted") new Notification("AXON TIKET",{body:`${n} novo${n>1?"s":""} checklist${n>1?"s":""}`,icon:"/icon-192.png"}); };
@@ -650,6 +651,7 @@ sb.q("v_kanban", tk, "order=submitted_at.desc"),
 sb.q("classes", tk, "active=eq.true&select=*&order=name"),
 ]);
 setKan(k); setCls(c);
+try { const d = await sb.rpc("get_setting",{p_key:"email_domain"},tk); if(d) setEmailDomain(d); } catch{}
 } catch (e) { msg("Erro: " + e.message, "error"); }
 finally { setLd(false); }
 };
@@ -784,14 +786,15 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 {v === "g_mgmt" && <>
 <h2 style={{ fontSize:20, marginBottom:16 }}>Gerenciamento</h2>
 <div className="tabs">
-{[[profile.role==="admin"&&"gestors","Gestores"],["classes","Classes"],["forms","Formulários"],["users","Motoristas"],["equip","Equipamentos"]].filter(([k])=>k).map(([k,l]) =>
+{[[profile.role==="admin"&&"gestors","Gestores"],["classes","Classes"],["forms","Formulários"],["users","Motoristas"],["equip","Equipamentos"],[profile.role==="admin"&&"config","⚙ Config"]].filter(([k])=>k).map(([k,l]) =>
 <button key={k} className={`tab ${mt===k?"on":""}`} onClick={() => setMt(k)}>{l}</button>)}
 </div>
-{mt === "gestors" && profile.role==="admin" && <GestorMgr tk={tk} msg={msg} />}
+{mt === "gestors" && profile.role==="admin" && <GestorMgr tk={tk} msg={msg} domain={emailDomain} />}
 {mt === "classes" && <ClassMgr tk={tk} cls={cls} reload={load} msg={msg} />}
 {mt === "forms" && <FormMgr tk={tk} cls={cls} reload={load} msg={msg} pid={profile.id} />}
-{mt === "users" && <UserMgr tk={tk} msg={msg} />}
+{mt === "users" && <UserMgr tk={tk} msg={msg} domain={emailDomain} />}
 {mt === "equip" && <EquipMgr tk={tk} cls={cls} reload={load} msg={msg} />}
+{mt === "config" && profile.role==="admin" && <ConfigMgr tk={tk} msg={msg} domain={emailDomain} setDomain={setEmailDomain} />}
 </>}
 {v === "g_pw" && <PwChange msg={msg} />}
 {v === "g_dash" && <Dashboard tk={tk} />}
@@ -978,37 +981,40 @@ return <div key={cl.id} style={{ marginBottom:24 }}>
 </div>; })}</>;
 }
 
-function UserMgr({ tk, msg }) {
-const [us,setUs]=useState([]); const [n,setN]=useState(""); const [e,setE]=useState(""); const [p,setP]=useState("");
+function UserMgr({ tk, msg, domain }) {
+const [us,setUs]=useState([]); const [n,setN]=useState(""); const [eu,setEu]=useState(""); const [p,setP]=useState("");
 const [editId,setEditId]=useState(null); const [eN,setEN]=useState(""); const [eE,setEE]=useState("");
 useEffect(()=>{loadU();},[]);
 const loadU = async () => setUs(await sb.q("profiles",tk,"role=eq.motorista&active=eq.true&select=*&order=name"));
-const add = async () => { if(!n.trim()||!e.trim()||!p.trim()) return msg("Preencha tudo","error");
+const add = async () => { if(!n.trim()||!eu.trim()||!p.trim()) return msg("Preencha tudo","error");
+const email = domain ? `${eu.trim()}@${domain}` : eu.trim();
+if(us.some(u=>u.name.toLowerCase()===n.trim().toLowerCase())) return msg("Já existe motorista com esse nome","error");
 try{
-  await sb.createUser(e.trim(),p.trim(),{name:n.trim(),role:"motorista"});
-  setN("");setE("");setP("");
-  msg("Motorista cadastrado!");
-  setTimeout(() => loadU(), 1500);
+  await sb.createUser(email,p.trim(),{name:n.trim(),role:"motorista"});
+  setN("");setEu("");setP(""); msg("Motorista cadastrado!"); setTimeout(()=>loadU(),1500);
 }catch(err){msg(err.message,"error");} };
 const saveEdit = async (u) => { if(!eN.trim()||!eE.trim()) return msg("Preencha nome e e-mail","error");
+if(us.some(x=>x.id!==u.id&&x.name.toLowerCase()===eN.trim().toLowerCase())) return msg("Nome já existe","error");
 try{
   await sb.upd("profiles",{name:eN.trim()},{id:u.id},tk);
-  if(eE.trim().toLowerCase() !== u.email.toLowerCase()) await sb.rpc("update_user_email",{target_user_id:u.id,new_email:eE.trim()},tk);
+  if(eE.trim().toLowerCase()!==u.email.toLowerCase()) await sb.rpc("update_user_email",{target_user_id:u.id,new_email:eE.trim()},tk);
   setEditId(null); msg("Motorista atualizado"); loadU();
 }catch(err){msg(err.message,"error");} };
 return <><div className="card" style={{ marginBottom:20 }}>
 <div style={{ fontWeight:600, marginBottom:12 }}>Cadastrar Motorista</div>
-<div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+<div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
 <input className="inp" placeholder="Nome" style={{ flex:1, minWidth:140 }} value={n} onChange={x=>setN(x.target.value)} />
-<input className="inp" placeholder="E-mail" style={{ flex:1, minWidth:140 }} value={e} onChange={x=>setE(x.target.value)} />
+<div style={{ display:"flex", flex:1, minWidth:180 }}>
+<input className="inp" placeholder="usuário" style={{ flex:1, borderRadius:domain?"8px 0 0 8px":"8px" }} value={eu} onChange={x=>setEu(x.target.value.replace(/[@\s]/g,""))} />
+{domain && <span style={{ background:T.c3, border:`1px solid ${T.bd}`, borderLeft:"none", borderRadius:"0 8px 8px 0", padding:"8px 10px", fontSize:12, color:T.t2, whiteSpace:"nowrap" }}>@{domain}</span>}
+</div>
 <input className="inp" type="password" placeholder="Senha" style={{ flex:1, minWidth:110 }} value={p} onChange={x=>setP(x.target.value)} />
 <button className="btn bp" onClick={add}>+</button></div></div>
 <div style={{ display:"grid", gap:8 }}>{us.map(u => <div key={u.id} className="card">
 {editId===u.id ? <div>
 <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 }}>
 <input className="inp" placeholder="Nome" style={{ flex:1, minWidth:140 }} value={eN} onChange={x=>setEN(x.target.value)} />
-<input className="inp" placeholder="E-mail" style={{ flex:1, minWidth:180 }} value={eE} onChange={x=>setEE(x.target.value)} />
-</div>
+<input className="inp" placeholder="E-mail completo" style={{ flex:1, minWidth:180 }} value={eE} onChange={x=>setEE(x.target.value)} /></div>
 <div style={{ display:"flex", gap:6 }}>
 <button className="btn bp bs" onClick={()=>saveEdit(u)}>✓ Salvar</button>
 <button className="btn bg bs" onClick={()=>setEditId(null)}>✕ Cancelar</button></div></div>
@@ -1016,42 +1022,45 @@ return <><div className="card" style={{ marginBottom:20 }}>
 <div><div style={{ fontWeight:600 }}>{u.name}</div><div style={{ fontSize:12, color:T.t2 }}>{u.email}</div></div>
 <div style={{ display:"flex", gap:4 }}>
 <button className="btn bg bs" onClick={()=>{setEditId(u.id);setEN(u.name);setEE(u.email);}}>✎</button>
-<button className="btn bg bs" onClick={async()=>{const pw=window.prompt(`Nova senha para ${u.name} (mín. 6 caracteres):`);if(!pw) return;try{await sb.rpc("reset_user_password",{target_user_id:u.id,new_password:pw},tk);msg("Senha resetada!");}catch(err){msg(err.message,"error");}}}>🔑</button>
-<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar motorista "${u.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:u.id},tk);msg("Motorista desativado");loadU();}catch(err){msg(err.message,"error");}}}>🗑</button></div></div>}
+<button className="btn bg bs" onClick={async()=>{const pw=window.prompt(`Nova senha para ${u.name} (mín. 6):`);if(!pw)return;try{await sb.rpc("reset_user_password",{target_user_id:u.id,new_password:pw},tk);msg("Senha resetada!");}catch(err){msg(err.message,"error");}}}>🔑</button>
+<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar "${u.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:u.id},tk);msg("Desativado");loadU();}catch(err){msg(err.message,"error");}}}>🗑</button></div></div>}
 </div>)}</div></>;
 }
 
-function GestorMgr({ tk, msg }) {
-const [gs,setGs]=useState([]); const [n,setN]=useState(""); const [e,setE]=useState(""); const [p,setP]=useState("");
+function GestorMgr({ tk, msg, domain }) {
+const [gs,setGs]=useState([]); const [n,setN]=useState(""); const [eu,setEu]=useState(""); const [p,setP]=useState("");
 const [editId,setEditId]=useState(null); const [eN,setEN]=useState(""); const [eE,setEE]=useState("");
 useEffect(()=>{loadG();},[]);
 const loadG = async () => setGs(await sb.q("profiles",tk,"role=eq.gestor&active=eq.true&select=*&order=name"));
-const add = async () => { if(!n.trim()||!e.trim()||!p.trim()) return msg("Preencha tudo","error");
+const add = async () => { if(!n.trim()||!eu.trim()||!p.trim()) return msg("Preencha tudo","error");
+const email = domain ? `${eu.trim()}@${domain}` : eu.trim();
+if(gs.some(g=>g.name.toLowerCase()===n.trim().toLowerCase())) return msg("Já existe gestor com esse nome","error");
 try{
-  await sb.createUser(e.trim(),p.trim(),{name:n.trim(),role:"gestor"});
-  setN("");setE("");setP("");
-  msg("Gestor cadastrado!");
-  setTimeout(() => loadG(), 1500);
+  await sb.createUser(email,p.trim(),{name:n.trim(),role:"gestor"});
+  setN("");setEu("");setP(""); msg("Gestor cadastrado!"); setTimeout(()=>loadG(),1500);
 }catch(err){msg(err.message,"error");} };
 const saveEdit = async (g) => { if(!eN.trim()||!eE.trim()) return msg("Preencha nome e e-mail","error");
+if(gs.some(x=>x.id!==g.id&&x.name.toLowerCase()===eN.trim().toLowerCase())) return msg("Nome já existe","error");
 try{
   await sb.upd("profiles",{name:eN.trim()},{id:g.id},tk);
-  if(eE.trim().toLowerCase() !== g.email.toLowerCase()) await sb.rpc("update_user_email",{target_user_id:g.id,new_email:eE.trim()},tk);
+  if(eE.trim().toLowerCase()!==g.email.toLowerCase()) await sb.rpc("update_user_email",{target_user_id:g.id,new_email:eE.trim()},tk);
   setEditId(null); msg("Gestor atualizado"); loadG();
 }catch(err){msg(err.message,"error");} };
 return <><div className="card" style={{ marginBottom:20 }}>
 <div style={{ fontWeight:600, marginBottom:12 }}>Cadastrar Gestor</div>
-<div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+<div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
 <input className="inp" placeholder="Nome" style={{ flex:1, minWidth:140 }} value={n} onChange={x=>setN(x.target.value)} />
-<input className="inp" placeholder="E-mail" style={{ flex:1, minWidth:140 }} value={e} onChange={x=>setE(x.target.value)} />
+<div style={{ display:"flex", flex:1, minWidth:180 }}>
+<input className="inp" placeholder="usuário" style={{ flex:1, borderRadius:domain?"8px 0 0 8px":"8px" }} value={eu} onChange={x=>setEu(x.target.value.replace(/[@\s]/g,""))} />
+{domain && <span style={{ background:T.c3, border:`1px solid ${T.bd}`, borderLeft:"none", borderRadius:"0 8px 8px 0", padding:"8px 10px", fontSize:12, color:T.t2, whiteSpace:"nowrap" }}>@{domain}</span>}
+</div>
 <input className="inp" type="password" placeholder="Senha" style={{ flex:1, minWidth:110 }} value={p} onChange={x=>setP(x.target.value)} />
 <button className="btn bp" onClick={add}>+</button></div></div>
 <div style={{ display:"grid", gap:8 }}>{gs.map(g => <div key={g.id} className="card">
 {editId===g.id ? <div>
 <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 }}>
 <input className="inp" placeholder="Nome" style={{ flex:1, minWidth:140 }} value={eN} onChange={x=>setEN(x.target.value)} />
-<input className="inp" placeholder="E-mail" style={{ flex:1, minWidth:180 }} value={eE} onChange={x=>setEE(x.target.value)} />
-</div>
+<input className="inp" placeholder="E-mail completo" style={{ flex:1, minWidth:180 }} value={eE} onChange={x=>setEE(x.target.value)} /></div>
 <div style={{ display:"flex", gap:6 }}>
 <button className="btn bp bs" onClick={()=>saveEdit(g)}>✓ Salvar</button>
 <button className="btn bg bs" onClick={()=>setEditId(null)}>✕ Cancelar</button></div></div>
@@ -1059,8 +1068,8 @@ return <><div className="card" style={{ marginBottom:20 }}>
 <div><div style={{ fontWeight:600 }}>{g.name}</div><div style={{ fontSize:12, color:T.t2 }}>{g.email}</div></div>
 <div style={{ display:"flex", gap:4 }}>
 <button className="btn bg bs" onClick={()=>{setEditId(g.id);setEN(g.name);setEE(g.email);}}>✎</button>
-<button className="btn bg bs" onClick={async()=>{const pw=window.prompt(`Nova senha para ${g.name} (mín. 6 caracteres):`);if(!pw) return;try{await sb.rpc("reset_user_password",{target_user_id:g.id,new_password:pw},tk);msg("Senha resetada!");}catch(err){msg(err.message,"error");}}}>🔑</button>
-<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar gestor "${g.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:g.id},tk);msg("Gestor desativado");loadG();}catch(err){msg(err.message,"error");}}}>🗑</button></div></div>}
+<button className="btn bg bs" onClick={async()=>{const pw=window.prompt(`Nova senha para ${g.name} (mín. 6):`);if(!pw)return;try{await sb.rpc("reset_user_password",{target_user_id:g.id,new_password:pw},tk);msg("Senha resetada!");}catch(err){msg(err.message,"error");}}}>🔑</button>
+<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar "${g.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:g.id},tk);msg("Desativado");loadG();}catch(err){msg(err.message,"error");}}}>🗑</button></div></div>}
 </div>)}</div></>;
 }
 
@@ -1152,6 +1161,41 @@ v>0 && <span key={l} className="badge" style={{ background:c+"20", color:c, font
 </>;
 }
 
+function ConfigMgr({ tk, msg, domain, setDomain }) {
+const [newDom, setNewDom] = useState("");
+const [changeLd, setChangeLd] = useState(false);
+const changeDomain = async () => {
+  if(!newDom.trim()||newDom.trim().length<3) return msg("Domínio inválido","error");
+  if(!window.confirm(`Trocar domínio de @${domain} para @${newDom.trim()} em TODOS os e-mails?`)) return;
+  setChangeLd(true);
+  try {
+    const r = await sb.rpc("change_email_domain",{p_old_domain:domain,p_new_domain:newDom.trim()},tk);
+    const res = typeof r==="string"?JSON.parse(r):r;
+    msg(`Domínio atualizado! ${res.updated} e-mail(s) alterado(s)`);
+    setDomain(newDom.trim()); setNewDom("");
+  } catch(e) { msg(e.message,"error"); }
+  setChangeLd(false);
+};
+return <>
+<div className="card" style={{ marginBottom:16 }}>
+<div style={{ fontWeight:600, marginBottom:12 }}>Domínio de E-mail</div>
+<div style={{ fontSize:12, color:T.t2, marginBottom:12 }}>Ao criar motoristas e gestores, o domínio será preenchido automaticamente.</div>
+<div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
+<span style={{ fontSize:13, color:T.t2 }}>Domínio atual:</span>
+<span className="badge" style={{ background:T.ac+"20", color:T.ac, fontSize:13 }}>@{domain||"não definido"}</span>
+</div>
+<div style={{ fontWeight:600, fontSize:13, marginBottom:8 }}>Trocar domínio em massa</div>
+<div style={{ fontSize:11, color:T.y, marginBottom:8 }}>⚠ Altera o e-mail de TODOS os usuários ativos com @{domain}</div>
+<div style={{ display:"flex", gap:8 }}>
+<div style={{ display:"flex", flex:1 }}>
+<span style={{ background:T.c3, border:`1px solid ${T.bd}`, borderRadius:"8px 0 0 8px", padding:"8px 10px", fontSize:12, color:T.t2 }}>@</span>
+<input className="inp" placeholder="novodominio.com" style={{ flex:1, borderRadius:"0 8px 8px 0", borderLeft:"none" }} value={newDom} onChange={e=>setNewDom(e.target.value.replace(/[@\s]/g,""))} />
+</div>
+<button className="btn bp" onClick={changeDomain} disabled={changeLd}>{changeLd?"Atualizando...":"Aplicar"}</button>
+</div></div>
+</>;
+}
+
 function PwChange({ msg }) {
 const { tk, profile } = useAuth();
 const [np,setNp]=useState(""); const [cp,setCp]=useState(""); const [ld,setLd]=useState(false);
@@ -1232,7 +1276,7 @@ const generatePDF = async () => {
     const ansLabel = a => a==="ok"?"✅ OK":a==="problem"?"⚠️ Problema":"➖ N/A";
     const stLabel = s => s==="atendido"?"Atendido":s==="em_atendimento"?"Em Atendimento":s==="triagem"?"Triagem":"Processado";
     const fmtDt = iso => iso?new Date(iso).toLocaleDateString("pt-BR")+" "+new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"—";
-    let html = `<html><head><meta charset="utf-8"><title>AXON TIKET — Dossiê</title><style>
+    let html = `<html><head><meta charset="utf-8"><title>AXON TIKET — Registros</title><style>
       *{margin:0;padding:0;box-sizing:border-box} body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#222;padding:20px;max-width:900px;margin:auto}
       h1{font-size:18px;color:#0099bb;margin-bottom:4px} .sub{font-size:10px;color:#666;margin-bottom:20px}
       .ck{border:1px solid #ccc;border-radius:8px;padding:14px;margin-bottom:16px;page-break-inside:avoid}
@@ -1246,8 +1290,8 @@ const generatePDF = async () => {
       .photo{width:80px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #ccc;margin:4px 4px 0 0}
       @media print{body{padding:10px} .ck{break-inside:avoid}}
     </style></head><body>`;
-    html += `<h1>AXON TIKET — Dossiê de Auditoria</h1>`;
-    html += `<div class="sub">Motorista: <b>${drv}</b> • Período: <b>${expFrom||"—"} a ${expTo||"—"}</b> • ${cls.length} checklist(s) • Gerado em ${fmtDt(new Date().toISOString())}</div>`;
+    html += `<h1>AXON TIKET — Registros</h1>`;
+    html += `<div class="sub">Motorista: <b>${drv}</b> • Período: <b>${expFrom?expFrom.split("-").reverse().join("/"):"—"} a ${expTo?expTo.split("-").reverse().join("/"):"—"}</b> • ${cls.length} checklist(s) • Gerado em ${fmtDt(new Date().toISOString())}</div>`;
     for (const c of cls) {
       const problems = (c.items||[]).filter(i=>i.answer==="problem");
       html += `<div class="ck"><div class="ck-head"><div><h2>${c.equip_prefix} — ${c.equip_plate}</h2><div style="font-size:11px;margin-top:2px">${c.form_name} • ${c.class_name}</div></div>`;
@@ -1322,8 +1366,8 @@ return <>
 <div style={{ flex:1 }}><div className="lbl">Até</div><input type="date" className="inp" value={expTo} onChange={e=>setExpTo(e.target.value)} /></div></div>
 {expLd ? <div style={{ textAlign:"center", padding:20 }}><div className="sp"/><div style={{ fontSize:11, color:T.t2, marginTop:8 }}>Gerando relatório...</div></div>
 : <div style={{ display:"flex", gap:8 }}>
-<button className="btn bp bw" style={{ flex:1 }} onClick={generatePDF}>📄 PDF (Auditoria)</button>
-<button className="btn bg bw" style={{ flex:1, border:`1px solid ${T.ac}`, color:T.ac }} onClick={generateExcel}>📊 Excel (Dados)</button></div>}
+<button className="btn bp bw" style={{ flex:1 }} onClick={generatePDF}>📄 PDF</button>
+<button className="btn bg bw" style={{ flex:1, border:`1px solid ${T.ac}`, color:T.ac }} onClick={generateExcel}>📊 Excel</button></div>}
 </div></div>}
 <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:14 }}>
 <h2 style={{ fontSize:20, margin:0 }}>Relatórios</h2>
