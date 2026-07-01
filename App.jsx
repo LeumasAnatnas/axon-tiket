@@ -631,7 +631,7 @@ if (filtDr && c.driver_name!==filtDr) return false;
 if (filtUr==="problem" && c.problem_count===0) return false;
 if (filtUr==="ok" && c.problem_count>0) return false;
 if (filtDate) { const d=new Date(c.submitted_at); const ld=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; if(ld!==filtDate) return false; }
-if (kSearch) { const s=kSearch.toLowerCase(); if(!`${c.ticket_number} ${c.equipment_prefix} ${c.equipment_plate} ${c.driver_name} ${c.form_name}`.toLowerCase().includes(s)) return false; }
+if (kSearch) { const s=kSearch.trim().toLowerCase(); if(/^\d+$/.test(s)){if(String(c.ticket_number)!==s) return false;} else if(!`${c.equipment_prefix} ${c.equipment_plate} ${c.driver_name} ${c.form_name}`.toLowerCase().includes(s)) return false; }
 return true;
 });
 }, [kan, period, filtEq, filtDr, filtUr, filtDate, kSearch]);
