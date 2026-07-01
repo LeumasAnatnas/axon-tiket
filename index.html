@@ -18,7 +18,11 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+          const had = !!navigator.serviceWorker.controller;
+          navigator.serviceWorker.register('/sw.js');
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (had) window.dispatchEvent(new Event('sw-updated'));
+          });
         });
       }
     </script>
