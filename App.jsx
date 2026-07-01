@@ -296,7 +296,7 @@ const [eq, cl, ch, ri, pe] = await Promise.all([
 sb.q("equipment", tk, "active=eq.true&select=*&order=prefix"),
 sb.q("classes", tk, "active=eq.true&select=*&order=name"),
 sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&order=submitted_at.desc&limit=20`),
-sb.q("checklists", tk, `driver_id=eq.${profile.id}&reinspection_requested=eq.true&select=id,equipment_id,form_id,reinspection_notes`),
+sb.q("checklists", tk, `driver_id=eq.${profile.id}&reinspection_requested=eq.true&status=neq.atendido&select=id,equipment_id,form_id,reinspection_notes`),
 sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&status=eq.atendido&eval_status=is.null&order=submitted_at.desc`),
 ]);
 setEqs(eq); setCls(cl); setHist(ch); setReinsps(ri||[]);
@@ -622,7 +622,6 @@ const fmtTm = (iso) => new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",
 
 const kanFiltered = useMemo(() => {
 return kan.filter(c => {
-if (c.reinspection_requested) return false;
 const df = calDays(c.submitted_at);
 if (period==="today"&&df>0) return false;
 if (period==="7d"&&df>7) return false;
@@ -770,6 +769,7 @@ return <div key={col.id} className="kc">
 return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, padding:"8px 10px", marginBottom:5 }} onClick={() => { setSelCard(cl); setMoveTo(null); setConcl(""); loadCardHistory(cl.id); }}>
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
 <span style={{ fontWeight:700, fontSize:12, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:10 }}>#{cl.ticket_number}</span> {cl.equipment_prefix} <span style={{ color:T.t3, fontWeight:400, fontSize:10 }}>— {cl.equipment_plate}</span></span>
+{cl.reinspection_requested && <span style={{ fontSize:8, color:T.y, fontWeight:700, marginLeft:6 }}>🔄 REINSPEÇÃO</span>}
 {cl.problem_count > 0 ? <span style={{ fontSize:9, fontWeight:700, color:cl.problem_count>=3?T.r:T.y, background:(cl.problem_count>=3?T.r:T.y)+"15", padding:"1px 5px", borderRadius:10 }}>⚠ {cl.problem_count}</span>
 : <span style={{ fontSize:9, color:T.g }}>✓</span>}</div>
 <div style={{ fontSize:10, color:T.t2, marginTop:2 }}>{cl.form_name}</div>
@@ -1124,7 +1124,7 @@ return <><h2 style={{ fontSize:20, marginBottom:4 }}>Meus Relatórios</h2>
 <button key={d} className={`tab ${period===d?"on":""}`} onClick={()=>setPeriod(d)} style={{ fontSize:11, padding:"6px 14px" }}>{l}</button>)}
 </div>
 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:10, marginBottom:14 }}>
-<div className="card" style={{ textAlign:"center", padding:14 }}><div style={{ fontSize:24, fontWeight:700, color:T.ac, fontFamily:"'JetBrains Mono'" }}>{k.total||0}</div><div style={{ fontSize:10, fontWeight:700, color:T.t2, textTransform:"uppercase" }}>Checklists</div></div>
+<div className="card" style={{ textAlign:"center", padding:14 }}><div style={{ fontSize:24, fontWeight:700, color:T.ac, fontFamily:"'JetBrains Mono'" }}>{k.total||0}</div><div style={{ fontSize:10, fontWeight:700, color:T.t2, textTransform:"uppercase" }}>Checklists Válidos</div></div>
 <div className="card" style={{ textAlign:"center", padding:14 }}><div style={{ fontSize:24, fontWeight:700, color:T.r, fontFamily:"'JetBrains Mono'" }}>{k.with_problems||0}</div><div style={{ fontSize:10, fontWeight:700, color:T.t2, textTransform:"uppercase" }}>Com Problemas</div></div>
 <div className="card" style={{ textAlign:"center", padding:14 }}><div style={{ fontSize:24, fontWeight:700, color:T.p, fontFamily:"'JetBrains Mono'" }}>{k.avg_rating_given||"—"}</div><div style={{ fontSize:10, fontWeight:700, color:T.t2, textTransform:"uppercase" }}>Nota Média Dada</div></div>
 </div>
