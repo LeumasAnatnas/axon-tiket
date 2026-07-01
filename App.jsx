@@ -743,7 +743,7 @@ return <>
 </div>
 {/* Filters */}
 <div className="filtrow">
-<input placeholder="🔍 Buscar..." value={kSearch} onChange={e=>setKSearch(e.target.value)}
+<input placeholder="🔍 Ticket, equip, motorista..." value={kSearch} onChange={e=>setKSearch(e.target.value)}
 className="inp finp" style={{ padding:"7px 12px", fontSize:12, width:200, minWidth:160 }} />
 <select className="inp finp" style={{ width:"auto", padding:"7px 10px", fontSize:11, minWidth:120 }} value={filtEq} onChange={e=>setFiltEq(e.target.value)}>
 <option value="">Equipamento</option>{[...new Set(kan.map(c=>c.equipment_prefix))].sort().map(v=><option key={v} value={v}>{v}</option>)}</select>
@@ -1439,7 +1439,7 @@ return <div key={i} style={{ padding:"10px 0", borderBottom:i<data.recent_feedba
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
 <div>
 <span style={{ fontWeight:700, fontSize:13 }}>{f.driver}</span>
-<span style={{ fontSize:11, color:T.t3, marginLeft:8, fontFamily:"'JetBrains Mono'" }}>#{f.ticket_number}</span>
+<span style={{ fontSize:11, color:T.t3, marginLeft:8, fontFamily:"'JetBrains Mono'" }}>Ticket #{f.ticket_number}</span>
 <span style={{ fontSize:11, color:T.t3, marginLeft:4 }}>{f.equipment}</span>
 {f.gestor && <span style={{ fontSize:10, color:T.t3, marginLeft:6 }}>→ {f.gestor}</span>}
 </div>
