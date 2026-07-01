@@ -500,7 +500,8 @@ return <div key={cl.id} className="card" style={{ marginBottom: 10, cursor:"poin
 <h3 style={{ fontSize:16 }}>Detalhes do Checklist</h3>
 <button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={()=>setSelHist(null)}>✕</button></div>
 <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Equipamento</div>
-<div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:11 }}>#{selHist.ticket_number}</span> {selHist.equipment_prefix} — {selHist.equipment_plate}</div></div>
+<div style={{ fontSize:11, color:T.t3, fontFamily:"'JetBrains Mono'", marginBottom:2 }}>Ticket #{selHist.ticket_number}</div>
+<div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{selHist.equipment_prefix} — {selHist.equipment_plate}</div></div>
 <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Formulário</div><div style={{ fontWeight:600 }}>{selHist.form_name}</div></div>
 <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Enviado em</div>
 <div>{new Date(selHist.submitted_at).toLocaleDateString("pt-BR")} às {new Date(selHist.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div></div>
@@ -541,7 +542,8 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
 <h3 style={{ fontSize:16 }}>⭐ Avaliar Atendimento</h3>
 <button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={()=>setEvalModal(null)}>✕</button></div>
-<div style={{ marginBottom:12 }}><div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:11 }}>#{evalModal.ticket_number}</span> {evalModal.equipment_prefix} — {evalModal.equipment_plate}</div>
+<div style={{ marginBottom:12 }}><div style={{ fontSize:11, color:T.t3, fontFamily:"'JetBrains Mono'", marginBottom:2 }}>Ticket #{evalModal.ticket_number}</div>
+<div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{evalModal.equipment_prefix} — {evalModal.equipment_plate}</div>
 <div style={{ fontSize:12, color:T.t2 }}>{evalModal.form_name}</div>
 <div style={{ fontSize:11, color:T.t3, marginTop:4 }}>Enviado em {new Date(evalModal.submitted_at).toLocaleDateString("pt-BR")} às {new Date(evalModal.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
 </div>
@@ -807,8 +809,9 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 <h3 style={{ fontSize:16 }}>Detalhes do Checklist</h3>
 <button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={closeCard}>✕</button></div>
 
+<div style={{ marginBottom:4, fontSize:11, color:T.t3, fontFamily:"'JetBrains Mono'" }}>Ticket #{selCard.ticket_number}</div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Equipamento</div>
-<div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:11 }}>#{selCard.ticket_number}</span> {selCard.equipment_prefix} — {selCard.equipment_plate}</div></div>
+<div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{selCard.equipment_prefix} — {selCard.equipment_plate}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Motorista</div><div style={{ fontWeight:600 }}>{selCard.driver_name}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Formulário</div><div>{selCard.form_name}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Itens</div><div>{selCard.total_items} total — <span style={{ color:T.r }}>{selCard.problem_count} com problema</span></div></div>
@@ -1294,7 +1297,7 @@ const generatePDF = async () => {
     html += `<div class="sub">Motorista: <b>${drv}</b> • Período: <b>${expFrom?expFrom.split("-").reverse().join("/"):"—"} a ${expTo?expTo.split("-").reverse().join("/"):"—"}</b> • ${cls.length} checklist(s) • Gerado em ${fmtDt(new Date().toISOString())}</div>`;
     for (const c of cls) {
       const problems = (c.items||[]).filter(i=>i.answer==="problem");
-      html += `<div class="ck"><div class="ck-head"><div><h2>#${c.ticket_number} • ${c.equip_prefix} — ${c.equip_plate}</h2><div style="font-size:11px;margin-top:2px">${c.form_name} • ${c.class_name}</div></div>`;
+      html += `<div class="ck"><div class="ck-head"><div><div style="font-size:10px;color:#666;font-family:monospace;margin-bottom:2px">Ticket #${c.ticket_number}</div><h2>${c.equip_prefix} — ${c.equip_plate}</h2><div style="font-size:11px;margin-top:2px">${c.form_name} • ${c.class_name}</div></div>`;
       html += `<div class="meta">Motorista: <b>${c.driver_name}</b><br>${fmtDt(c.submitted_at)}<br><span class="status-badge" style="background:${c.status==="atendido"?"#d1fae5;color:#065f46":c.status==="em_atendimento"?"#dbeafe;color:#1e40af":"#fef9c3;color:#854d0e"}">${stLabel(c.status)}</span></div></div>`;
       html += `<table><tr><th style="width:40%">Item</th><th style="width:12%">Resultado</th><th>Observação</th><th style="width:15%">Foto</th></tr>`;
       for (const it of (c.items||[])) {
@@ -1436,7 +1439,8 @@ return <div key={i} style={{ padding:"10px 0", borderBottom:i<data.recent_feedba
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
 <div>
 <span style={{ fontWeight:700, fontSize:13 }}>{f.driver}</span>
-<span style={{ fontSize:11, color:T.t3, marginLeft:8 }}>{f.equipment}</span>
+<span style={{ fontSize:11, color:T.t3, marginLeft:8, fontFamily:"'JetBrains Mono'" }}>#{f.ticket_number}</span>
+<span style={{ fontSize:11, color:T.t3, marginLeft:4 }}>{f.equipment}</span>
 {f.gestor && <span style={{ fontSize:10, color:T.t3, marginLeft:6 }}>→ {f.gestor}</span>}
 </div>
 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
