@@ -388,7 +388,7 @@ return <>
 <div style={{ fontSize:12, fontWeight:700, color:T.p, textTransform:"uppercase", letterSpacing:.5, marginBottom:8 }}>⭐ Avaliações pendentes ({pendingEvals.length})</div>
 {pendingEvals.map(pe => <div key={pe.id} className="card" onClick={async()=>{setEvalModal(pe);setEvalStatus("");setEvalRating(5);setEvalNotes("");try{const r=await sb.q("v_checklist_items",tk,`checklist_id=eq.${pe.id}&answer=eq.problem`);setEvalResps(r||[]);}catch{setEvalResps([]);}}} style={{ cursor:"pointer", borderColor:T.p+"60", marginBottom:8 }}>
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-<div><div style={{ fontWeight:700, fontSize:14, fontFamily:"'JetBrains Mono'" }}>{pe.equipment_prefix} <span style={{ color:T.t3 }}>— {pe.equipment_plate}</span></div>
+<div><div style={{ fontWeight:700, fontSize:14, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:11 }}>#{pe.ticket_number}</span> {pe.equipment_prefix} <span style={{ color:T.t3 }}>— {pe.equipment_plate}</span></div>
 <div style={{ fontSize:12, color:T.t2, marginTop:2 }}>{pe.form_name}</div>
 <div style={{ fontSize:11, color:T.t3, marginTop:2 }}>{new Date(pe.submitted_at).toLocaleDateString("pt-BR")} às {new Date(pe.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})} • {pe.problem_count} problema{pe.problem_count>1?"s":""}</div>
 <div style={{ fontSize:12, color:T.p, marginTop:4 }}>Toque para avaliar</div></div>
@@ -481,7 +481,7 @@ const col = KAN.find(k => k.id === cl.status);
 return <div key={cl.id} className="card" style={{ marginBottom: 10, cursor:"pointer" }} onClick={()=>loadHistDetail(cl)}>
 <div style={{ display:"flex", justifyContent:"space-between" }}>
 <div><div style={{ fontWeight:700, fontSize:14 }}>{cl.form_name}</div>
-<div style={{ fontSize:12, color:T.t2, marginTop:2 }}>{cl.equipment_prefix} — {cl.equipment_plate}</div>
+<div style={{ fontSize:12, color:T.t2, marginTop:2 }}><span style={{ fontFamily:"'JetBrains Mono'", color:T.t3 }}>#{cl.ticket_number}</span> {cl.equipment_prefix} — {cl.equipment_plate}</div>
 <div style={{ fontSize:11, color:T.t3, marginTop:2 }}>{new Date(cl.submitted_at).toLocaleDateString("pt-BR")} às {new Date(cl.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div></div>
 <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
 <span className="badge" style={{ background:col?.color+"20", color:col?.color }}>{col?.icon} {col?.label}</span>
@@ -500,7 +500,7 @@ return <div key={cl.id} className="card" style={{ marginBottom: 10, cursor:"poin
 <h3 style={{ fontSize:16 }}>Detalhes do Checklist</h3>
 <button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={()=>setSelHist(null)}>✕</button></div>
 <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Equipamento</div>
-<div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{selHist.equipment_prefix} — {selHist.equipment_plate}</div></div>
+<div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:11 }}>#{selHist.ticket_number}</span> {selHist.equipment_prefix} — {selHist.equipment_plate}</div></div>
 <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Formulário</div><div style={{ fontWeight:600 }}>{selHist.form_name}</div></div>
 <div style={{ marginBottom:8 }}><div style={{ fontSize:12, color:T.t2 }}>Enviado em</div>
 <div>{new Date(selHist.submitted_at).toLocaleDateString("pt-BR")} às {new Date(selHist.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div></div>
@@ -541,7 +541,7 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
 <h3 style={{ fontSize:16 }}>⭐ Avaliar Atendimento</h3>
 <button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={()=>setEvalModal(null)}>✕</button></div>
-<div style={{ marginBottom:12 }}><div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{evalModal.equipment_prefix} — {evalModal.equipment_plate}</div>
+<div style={{ marginBottom:12 }}><div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:11 }}>#{evalModal.ticket_number}</span> {evalModal.equipment_prefix} — {evalModal.equipment_plate}</div>
 <div style={{ fontSize:12, color:T.t2 }}>{evalModal.form_name}</div>
 <div style={{ fontSize:11, color:T.t3, marginTop:4 }}>Enviado em {new Date(evalModal.submitted_at).toLocaleDateString("pt-BR")} às {new Date(evalModal.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
 </div>
@@ -629,7 +629,7 @@ if (filtDr && c.driver_name!==filtDr) return false;
 if (filtUr==="problem" && c.problem_count===0) return false;
 if (filtUr==="ok" && c.problem_count>0) return false;
 if (filtDate) { const d=new Date(c.submitted_at); const ld=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; if(ld!==filtDate) return false; }
-if (kSearch) { const s=kSearch.toLowerCase(); if(!`${c.equipment_prefix} ${c.equipment_plate} ${c.driver_name} ${c.form_name}`.toLowerCase().includes(s)) return false; }
+if (kSearch) { const s=kSearch.toLowerCase(); if(!`${c.ticket_number} ${c.equipment_prefix} ${c.equipment_plate} ${c.driver_name} ${c.form_name}`.toLowerCase().includes(s)) return false; }
 return true;
 });
 }, [kan, period, filtEq, filtDr, filtUr, filtDate, kSearch]);
@@ -766,7 +766,7 @@ return <div key={col.id} className="kc">
 {visCards.map(cl => { const urg = cl.problem_count>=3?T.r:cl.problem_count>0?T.y:T.g;
 return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, padding:"8px 10px", marginBottom:5 }} onClick={() => { setSelCard(cl); setMoveTo(null); setConcl(""); loadCardHistory(cl.id); }}>
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-<span style={{ fontWeight:700, fontSize:12, fontFamily:"'JetBrains Mono'" }}>{cl.equipment_prefix} <span style={{ color:T.t3, fontWeight:400, fontSize:10 }}>— {cl.equipment_plate}</span></span>
+<span style={{ fontWeight:700, fontSize:12, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:10 }}>#{cl.ticket_number}</span> {cl.equipment_prefix} <span style={{ color:T.t3, fontWeight:400, fontSize:10 }}>— {cl.equipment_plate}</span></span>
 {cl.problem_count > 0 ? <span style={{ fontSize:9, fontWeight:700, color:cl.problem_count>=3?T.r:T.y, background:(cl.problem_count>=3?T.r:T.y)+"15", padding:"1px 5px", borderRadius:10 }}>⚠ {cl.problem_count}</span>
 : <span style={{ fontSize:9, color:T.g }}>✓</span>}</div>
 <div style={{ fontSize:10, color:T.t2, marginTop:2 }}>{cl.form_name}</div>
@@ -808,7 +808,7 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 <button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={closeCard}>✕</button></div>
 
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Equipamento</div>
-<div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{selCard.equipment_prefix} — {selCard.equipment_plate}</div></div>
+<div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:11 }}>#{selCard.ticket_number}</span> {selCard.equipment_prefix} — {selCard.equipment_plate}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Motorista</div><div style={{ fontWeight:600 }}>{selCard.driver_name}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Formulário</div><div>{selCard.form_name}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Itens</div><div>{selCard.total_items} total — <span style={{ color:T.r }}>{selCard.problem_count} com problema</span></div></div>
@@ -1146,7 +1146,7 @@ v>0 && <span key={l} className="badge" style={{ background:c+"20", color:c, font
 {data.recent.map((r,i) => <div key={r.id} style={{ padding:"10px 0", borderBottom:i<data.recent.length-1?`1px solid ${T.bd}`:"none" }}>
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
 <div>
-<div style={{ fontWeight:700, fontSize:13, fontFamily:"'JetBrains Mono'" }}>{r.equipment}</div>
+<div style={{ fontWeight:700, fontSize:13, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:10 }}>#{r.ticket_number}</span> {r.equipment}</div>
 <div style={{ fontSize:11, color:T.t2 }}>{r.form_name}</div>
 <div style={{ fontSize:10, color:T.t3, marginTop:2 }}>{new Date(r.submitted_at).toLocaleDateString("pt-BR")} às {new Date(r.submitted_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
 </div>
@@ -1294,7 +1294,7 @@ const generatePDF = async () => {
     html += `<div class="sub">Motorista: <b>${drv}</b> • Período: <b>${expFrom?expFrom.split("-").reverse().join("/"):"—"} a ${expTo?expTo.split("-").reverse().join("/"):"—"}</b> • ${cls.length} checklist(s) • Gerado em ${fmtDt(new Date().toISOString())}</div>`;
     for (const c of cls) {
       const problems = (c.items||[]).filter(i=>i.answer==="problem");
-      html += `<div class="ck"><div class="ck-head"><div><h2>${c.equip_prefix} — ${c.equip_plate}</h2><div style="font-size:11px;margin-top:2px">${c.form_name} • ${c.class_name}</div></div>`;
+      html += `<div class="ck"><div class="ck-head"><div><h2>#${c.ticket_number} • ${c.equip_prefix} — ${c.equip_plate}</h2><div style="font-size:11px;margin-top:2px">${c.form_name} • ${c.class_name}</div></div>`;
       html += `<div class="meta">Motorista: <b>${c.driver_name}</b><br>${fmtDt(c.submitted_at)}<br><span class="status-badge" style="background:${c.status==="atendido"?"#d1fae5;color:#065f46":c.status==="em_atendimento"?"#dbeafe;color:#1e40af":"#fef9c3;color:#854d0e"}">${stLabel(c.status)}</span></div></div>`;
       html += `<table><tr><th style="width:40%">Item</th><th style="width:12%">Resultado</th><th>Observação</th><th style="width:15%">Foto</th></tr>`;
       for (const it of (c.items||[])) {
@@ -1329,21 +1329,21 @@ const generateExcel = async () => {
     const cls = report.checklists||[];
     if(!cls.length) { alert("Nenhum checklist encontrado."); setExpLd(false); return; }
     const wb = XLSX.utils.book_new();
-    const ckRows = [["Equipamento","Placa","Classe","Formulário","Motorista","Data Envio","Status","Gestor","Data Conclusão","Conclusão","Problemas","Avaliação","Nota","Obs. Avaliação"],
-      ...cls.map(c=>[c.equip_prefix,c.equip_plate,c.class_name,c.form_name,c.driver_name,
+    const ckRows = [["#","Equipamento","Placa","Classe","Formulário","Motorista","Data Envio","Status","Gestor","Data Conclusão","Conclusão","Problemas","Avaliação","Nota","Obs. Avaliação"],
+      ...cls.map(c=>[c.ticket_number,c.equip_prefix,c.equip_plate,c.class_name,c.form_name,c.driver_name,
         c.submitted_at?new Date(c.submitted_at).toLocaleString("pt-BR"):"",c.status,c.gestor_name||"",
         c.concluded_at?new Date(c.concluded_at).toLocaleString("pt-BR"):"",c.conclusion_text||"",
         (c.items||[]).filter(i=>i.answer==="problem").length,
         c.eval_status==="totalmente_atendido"?"Totalmente":c.eval_status==="parcialmente"?"Parcialmente":c.eval_status==="nao_atendido"?"Não atendido":"",
         c.eval_rating!=null?c.eval_rating:"",c.eval_notes||""])];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ckRows), "Checklists");
-    const itemRows = [["Equipamento","Motorista","Data Envio","Item","Resultado","Observação","URL Foto"],
-      ...cls.flatMap(c=>(c.items||[]).map(i=>[c.equip_prefix+" "+c.equip_plate,c.driver_name,
+    const itemRows = [["#","Equipamento","Motorista","Data Envio","Item","Resultado","Observação","URL Foto"],
+      ...cls.flatMap(c=>(c.items||[]).map(i=>[c.ticket_number,c.equip_prefix+" "+c.equip_plate,c.driver_name,
         c.submitted_at?new Date(c.submitted_at).toLocaleString("pt-BR"):"",
         i.label,i.answer==="ok"?"OK":i.answer==="problem"?"Problema":"N/A",i.notes||"",i.photo_url||""]))];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(itemRows), "Respostas");
-    const histRows = [["Equipamento","Data Checklist","Ação","De","Para","Responsável","Observação","Data"],
-      ...cls.flatMap(c=>(c.history||[]).map(h=>[c.equip_prefix+" "+c.equip_plate,
+    const histRows = [["#","Equipamento","Data Checklist","Ação","De","Para","Responsável","Observação","Data"],
+      ...cls.flatMap(c=>(c.history||[]).map(h=>[c.ticket_number,c.equip_prefix+" "+c.equip_plate,
         c.submitted_at?new Date(c.submitted_at).toLocaleString("pt-BR"):"",
         h.action,h.from_status||"",h.to_status||"",h.performed_by_name||"",h.notes||"",
         h.created_at?new Date(h.created_at).toLocaleString("pt-BR"):""]))];
