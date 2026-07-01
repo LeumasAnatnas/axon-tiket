@@ -297,9 +297,10 @@ sb.q("equipment", tk, "active=eq.true&select=*&order=prefix"),
 sb.q("classes", tk, "active=eq.true&select=*&order=name"),
 sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&order=submitted_at.desc&limit=20`),
 sb.q("checklists", tk, `driver_id=eq.${profile.id}&reinspection_requested=eq.true&select=id,equipment_id,form_id,reinspection_notes`),
-sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&status=eq.atendido&eval_status=is.null&problem_count=gt.0&or=(reinspection_requested.eq.false,reinspection_requested.is.null)&order=submitted_at.desc`),
+sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&status=eq.atendido&eval_status=is.null&order=submitted_at.desc`),
 ]);
-setEqs(eq); setCls(cl); setHist(ch); setReinsps(ri||[]); setPendingEvals(pe||[]);
+setEqs(eq); setCls(cl); setHist(ch); setReinsps(ri||[]);
+setPendingEvals((pe||[]).filter(c => c.problem_count > 0 && !c.reinspection_requested));
 } catch (e) { msg("Erro: " + e.message, "error"); }
 finally { setLd(false); }
 };
