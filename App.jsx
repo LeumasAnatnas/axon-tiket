@@ -1268,6 +1268,45 @@ const Kpi = ({ icon, label, value, color, sub }) => <div style={{ background:T.c
 {sub && <div style={{ fontSize:9, color:T.t3, marginTop:2 }}>{sub}</div>}</div></div>;
 const Section = ({ title, children }) => <div style={{ background:T.c1, border:`1px solid ${T.bd}`, borderRadius:10, padding:16, marginBottom:14 }}>
 <div style={{ fontSize:14, fontWeight:700, marginBottom:12, color:T.t1 }}>{title}</div>{children}</div>;
+const LineChart = ({ data, color = "#3b82f6" }) => {
+if (!data?.length) return null;
+const W = 500, H = 160, P = { t: 20, r: 16, b: 36, l: 36 };
+const cw = W - P.l - P.r, ch = H - P.t - P.b;
+const mx = Math.max(...data.map(d => d.total), 1);
+const pts = data.map((d, i) => [P.l + (data.length > 1 ? i * cw / (data.length - 1) : cw / 2), P.t + ch - (d.total / mx) * ch]);
+const line = pts.map(([x, y]) => `${x},${y}`).join(" ");
+const area = `${pts[0][0]},${P.t + ch} ${line} ${pts[pts.length - 1][0]},${P.t + ch}`;
+const step = mx <= 4 ? 1 : Math.ceil(mx / 4);
+const yTicks = [];
+for (let v = 0; v <= mx; v += step) yTicks.push(v);
+if (yTicks[yTicks.length - 1] < mx) yTicks.push(mx);
+return <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+{yTicks.map(v => { const y = P.t + ch - (v / mx) * ch; return <g key={v}><line x1={P.l} x2={W - P.r} y1={y} y2={y} stroke={T.bd} strokeWidth={0.5} /><text x={P.l - 6} y={y + 3} fill={T.t3} fontSize={8} textAnchor="end" fontFamily="'JetBrains Mono'">{v}</text></g>; })}
+<polygon points={area} fill={color} opacity={0.12} />
+<polyline points={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
+{pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={3} fill={color} />)}
+{data.map((d, i) => { const [x] = pts[i]; const lbl = new Date(d.day + "T12:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }); const show = data.length <= 15 || i % Math.ceil(data.length / 12) === 0 || i === data.length - 1; return show ? <text key={i} x={x} y={H - 6} fill={T.t3} fontSize={7} textAnchor="middle" fontFamily="'DM Sans'">{lbl}</text> : null; })}
+{pts.map(([x, y], i) => <text key={"v" + i} x={x} y={y - 8} fill={T.t1} fontSize={7} textAnchor="middle" fontFamily="'JetBrains Mono'" fontWeight={700}>{data[i].total}</text>)}
+</svg>;
+};
+const Donut = ({ segments, centerLabel, centerValue }) => {
+const total = segments.reduce((s, x) => s + x.value, 0);
+if (!total) return null;
+const R = 50, C = 2 * Math.PI * R;
+let offset = 0;
+return <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap", justifyContent: "center" }}>
+<svg viewBox="0 0 140 140" style={{ width: 120, height: 120 }}>
+{segments.filter(s => s.value > 0).map((s, i) => { const dash = (s.value / total) * C; const o = offset; offset += dash; return <circle key={i} cx={70} cy={70} r={R} fill="none" stroke={s.color} strokeWidth={18} strokeDasharray={`${dash} ${C - dash}`} strokeDashoffset={-o} transform="rotate(-90 70 70)" />; })}
+<text x={70} y={64} fill={T.t1} fontSize={20} fontWeight={700} textAnchor="middle" fontFamily="'JetBrains Mono'">{centerValue}</text>
+<text x={70} y={80} fill={T.t3} fontSize={8} textAnchor="middle" fontFamily="'DM Sans'" textTransform="uppercase">{centerLabel}</text>
+</svg>
+<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+{segments.filter(s => s.value > 0).map((s, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+<div style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+<span style={{ color: T.t2 }}>{s.label}: <span style={{ fontWeight: 700, color: s.color, fontFamily: "'JetBrains Mono'" }}>{s.value}</span></span>
+</div>)}
+</div></div>;
+};
 if(ld) return <div style={{ textAlign:"center", padding:40 }}><div className="sp"/></div>;
 if(!data) return <div style={{ textAlign:"center", padding:40, color:T.t3 }}>Sem dados</div>;
 const k = data.kpis, s = data.sla || {}, b = data.backlog || {};
@@ -1423,7 +1462,7 @@ return <>
 </Section>}
 {/* Daily */}
 {data.daily?.length > 0 && <Section title="Checklists por Dia">
-{data.daily.map(d => <Bar key={d.day} label={new Date(d.day+"T12:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"short"})} value={d.total} max={maxDaily} color="#3b82f6" />)}
+<LineChart data={data.daily} />
 </Section>}
 {/* Top Problems */}
 {data.top_problems?.length > 0 && <Section title="Itens com Mais Problemas">
@@ -1439,9 +1478,8 @@ return <>
 <Kpi icon="📝" value={data.evaluation.total_evaluated} label="AVALIADOS" color={T.g} />
 <Kpi icon="⏳" value={data.evaluation.pending} label="PENDENTES" color={T.y} />
 </div>
-{(data.evaluation.totalmente>0||data.evaluation.parcialmente>0||data.evaluation.nao_atendido>0) && <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-{[["Totalmente",data.evaluation.totalmente,T.g],["Parcialmente",data.evaluation.parcialmente,T.y],["Não atendido",data.evaluation.nao_atendido,T.r]].map(([l,v,c])=>
-v>0 && <span key={l} className="badge" style={{ background:c+"20", color:c, fontSize:11 }}>{l}: {v}</span>)}
+{(data.evaluation.totalmente>0||data.evaluation.parcialmente>0||data.evaluation.nao_atendido>0) && <div style={{ marginTop:4 }}>
+<Donut segments={[{label:"Totalmente",value:data.evaluation.totalmente,color:T.g},{label:"Parcialmente",value:data.evaluation.parcialmente,color:T.y},{label:"Não atendido",value:data.evaluation.nao_atendido,color:T.r}]} centerValue={data.evaluation.avg_rating} centerLabel="nota média" />
 </div>}
 </Section>}
 {data.recent_feedback?.length > 0 && <Section title="💬 Feedback dos Motoristas">
