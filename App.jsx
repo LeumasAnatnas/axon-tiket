@@ -490,7 +490,7 @@ return <div key={cl.id} className="card" style={{ marginBottom: 10, cursor:"poin
 {cl.reinspection_requested && <div style={{ marginTop:8, fontSize:12, color:T.y }}>⚠ Re-inspeção: {cl.reinspection_notes}</div>}
 {cl.conclusion_text && <div style={{ marginTop:8, fontSize:12, color:T.g }}>✓ {cl.gestor_name ? `${cl.gestor_name}: ` : ""}{cl.conclusion_text}</div>}
 {cl.eval_status && <div style={{ marginTop:6, fontSize:11, color:T.p }}>⭐ {cl.eval_rating}/10 — {cl.eval_status==="totalmente_atendido"?"Totalmente atendido":cl.eval_status==="parcialmente"?"Parcialmente":"Não atendido"}</div>}
-{cl.status==="atendido" && !cl.eval_status && <div style={{ marginTop:6, fontSize:11, color:T.p, fontWeight:600 }}>⭐ Pendente de avaliação</div>}
+{cl.status==="atendido" && !cl.eval_status && !cl.reinspection_requested && <div style={{ marginTop:6, fontSize:11, color:T.p, fontWeight:600 }}>⭐ Pendente de avaliação</div>}
 </div>;
 })}
 
@@ -769,7 +769,7 @@ return <div key={col.id} className="kc">
 return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, padding:"8px 10px", marginBottom:5 }} onClick={() => { setSelCard(cl); setMoveTo(null); setConcl(""); loadCardHistory(cl.id); }}>
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
 <span style={{ fontWeight:700, fontSize:12, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:10 }}>#{cl.ticket_number}</span> {cl.equipment_prefix} <span style={{ color:T.t3, fontWeight:400, fontSize:10 }}>— {cl.equipment_plate}</span></span>
-{cl.reinspection_requested && <span style={{ fontSize:8, color:T.y, fontWeight:700, marginLeft:6 }}>🔄 REINSPEÇÃO</span>}
+{cl.reinspection_requested && <span style={{ fontSize:8, color:T.y, fontWeight:700, marginLeft:6 }}>{cl.status==="atendido"?"🔄 REINSPEÇÃO ATENDIDA":"🔄 REINSPEÇÃO SOLICITADA"}</span>}
 {cl.problem_count > 0 ? <span style={{ fontSize:9, fontWeight:700, color:cl.problem_count>=3?T.r:T.y, background:(cl.problem_count>=3?T.r:T.y)+"15", padding:"1px 5px", borderRadius:10 }}>⚠ {cl.problem_count}</span>
 : <span style={{ fontSize:9, color:T.g }}>✓</span>}</div>
 <div style={{ fontSize:10, color:T.t2, marginTop:2 }}>{cl.form_name}</div>
@@ -879,7 +879,7 @@ return <div key={i} style={{ padding:"6px 0", borderBottom:`1px solid ${T.bd}` }
 <div style={{ fontSize:14, fontWeight:700, color:T.p, marginTop:4 }}>{selCard.eval_rating}/10 — {selCard.eval_status==="totalmente_atendido"?"Totalmente atendido":selCard.eval_status==="parcialmente"?"Parcialmente atendido":"Não atendido"}</div>
 {selCard.eval_notes && <div style={{ fontSize:12, color:T.t2, marginTop:4, fontStyle:"italic" }}>💬 {selCard.eval_notes}</div>}
 <div style={{ fontSize:10, color:T.t3, marginTop:4 }}>{selCard.eval_at && new Date(selCard.eval_at).toLocaleDateString("pt-BR")}</div></div>}
-{selCard.status==="atendido" && !selCard.eval_status && <div style={{ marginTop:16, padding:"8px 14px", background:T.p+"10", border:`1px dashed ${T.p}40`, borderRadius:8, fontSize:11, color:T.p }}>⭐ Aguardando avaliação do motorista</div>}
+{selCard.status==="atendido" && !selCard.eval_status && !selCard.reinspection_requested && <div style={{ marginTop:16, padding:"8px 14px", background:T.p+"10", border:`1px dashed ${T.p}40`, borderRadius:8, fontSize:11, color:T.p }}>⭐ Aguardando avaliação do motorista</div>}
 
 <div style={{ marginTop:20, fontSize:12, fontWeight:700, color:T.t2, textTransform:"uppercase", marginBottom:8 }}>Mover para</div>
 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
