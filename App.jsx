@@ -1115,9 +1115,9 @@ return <div key={eq.id} className="card" style={{ display:"flex", justifyContent
 : <><div><div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{eq.prefix} — {eq.plate} {eq.active===false&&<span className="badge" style={{ background:T.r+"20", color:T.r, fontSize:9, marginLeft:6 }}>Inativo</span>}</div><div style={{ fontSize:12, color:T.t2 }}>{c?.name}</div></div>
 <div style={{ display:"flex", gap:4 }}>
 {eq.active!==false&&<><button className="btn bg bs" onClick={()=>{setEditId(eq.id);setEPx(eq.prefix);setEPl(eq.plate);setECi(eq.class_id);}}>✎</button>
-<button className="btn bg bs" style={{ color:T.r }} onClick={()=>del(eq)}>🗑</button></div></>}
-</>}
+<button className="btn bg bs" style={{ color:T.r }} onClick={()=>del(eq)}>🗑</button></>}
 {eq.active===false&&<button className="btn bg bs" style={{ color:T.g }} onClick={async()=>{if(!window.confirm(`Reativar "${eq.prefix} — ${eq.plate}"?`))return;try{await sb.upd("equipment",{active:true},{id:eq.id},tk);msg("Reativado!");loadE();reload();}catch(e){msg(e.message,"error");}}}>♻</button>}
+</div></>}
 </div>;
 })}</div></>;
 }
