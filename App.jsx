@@ -991,24 +991,25 @@ return <div key={cl.id} style={{ marginBottom:24 }}>
 function UserMgr({ tk, msg, domain }) {
 const [us,setUs]=useState([]); const [n,setN]=useState(""); const [eu,setEu]=useState(""); const [p,setP]=useState("");
 const [editId,setEditId]=useState(null); const [eN,setEN]=useState(""); const [eE,setEE]=useState("");
-useEffect(()=>{loadU();},[]);
-const loadU = async () => setUs(await sb.q("profiles",tk,"role=eq.motorista&active=eq.true&select=*&order=name"));
+const [showAll,setShowAll]=useState(false);
+useEffect(()=>{loadU();},[showAll]);
+const loadU = async () => setUs(await sb.q("profiles",tk,`role=eq.motorista${showAll?"":"&active=eq.true"}&select=*&order=name`));
 const add = async () => { if(!n.trim()||!eu.trim()||!p.trim()) return msg("Preencha tudo","error");
 const email = domain ? `${eu.trim()}@${domain}` : eu.trim();
-if(us.some(u=>u.name.toLowerCase()===n.trim().toLowerCase())) return msg("Já existe motorista com esse nome","error");
+if(us.filter(u=>u.active!==false).some(u=>u.name.toLowerCase()===n.trim().toLowerCase())) return msg("Já existe motorista com esse nome","error");
 try{
   await sb.createUser(email,p.trim(),{name:n.trim(),role:"motorista"});
   setN("");setEu("");setP(""); msg("Motorista cadastrado!"); setTimeout(()=>loadU(),1500);
 }catch(err){msg(err.message,"error");} };
 const saveEdit = async (u) => { if(!eN.trim()||!eE.trim()) return msg("Preencha nome e e-mail","error");
-if(us.some(x=>x.id!==u.id&&x.name.toLowerCase()===eN.trim().toLowerCase())) return msg("Nome já existe","error");
+if(us.filter(x=>x.active!==false).some(x=>x.id!==u.id&&x.name.toLowerCase()===eN.trim().toLowerCase())) return msg("Nome já existe","error");
 try{
   await sb.upd("profiles",{name:eN.trim()},{id:u.id},tk);
   if(eE.trim().toLowerCase()!==u.email.toLowerCase()) await sb.rpc("update_user_email",{target_user_id:u.id,new_email:eE.trim()},tk);
   setEditId(null); msg("Motorista atualizado"); loadU();
 }catch(err){msg(err.message,"error");} };
 return <><div className="card" style={{ marginBottom:20 }}>
-<div style={{ fontWeight:600, marginBottom:12 }}>Cadastrar Motorista</div>
+<div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}><div style={{ fontWeight:600 }}>Cadastrar Motorista</div><button className="btn bg bs" style={{ fontSize:10, padding:"4px 10px" }} onClick={()=>setShowAll(!showAll)}>{showAll?"👁 Ocultar inativos":"👁 Ver inativos"}</button></div>
 <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
 <input className="inp" placeholder="Nome" style={{ flex:1, minWidth:140 }} value={n} onChange={x=>setN(x.target.value)} />
 <div style={{ display:"flex", flex:1, minWidth:180 }}>
@@ -1017,7 +1018,7 @@ return <><div className="card" style={{ marginBottom:20 }}>
 </div>
 <input className="inp" type="password" placeholder="Senha" style={{ flex:1, minWidth:110 }} value={p} onChange={x=>setP(x.target.value)} />
 <button className="btn bp" onClick={add}>+</button></div></div>
-<div style={{ display:"grid", gap:8 }}>{us.map(u => <div key={u.id} className="card">
+<div style={{ display:"grid", gap:8 }}>{us.map(u => <div key={u.id} className="card" style={{ opacity:u.active===false?.5:1 }}>
 {editId===u.id ? <div>
 <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 }}>
 <input className="inp" placeholder="Nome" style={{ flex:1, minWidth:140 }} value={eN} onChange={x=>setEN(x.target.value)} />
@@ -1026,35 +1027,38 @@ return <><div className="card" style={{ marginBottom:20 }}>
 <button className="btn bp bs" onClick={()=>saveEdit(u)}>✓ Salvar</button>
 <button className="btn bg bs" onClick={()=>setEditId(null)}>✕ Cancelar</button></div></div>
 : <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-<div><div style={{ fontWeight:600 }}>{u.name}</div><div style={{ fontSize:12, color:T.t2 }}>{u.email}</div></div>
+<div><div style={{ fontWeight:600 }}>{u.name} {u.active===false&&<span className="badge" style={{ background:T.r+"20", color:T.r, fontSize:9, marginLeft:6 }}>Inativo</span>}</div><div style={{ fontSize:12, color:T.t2 }}>{u.email}</div></div>
 <div style={{ display:"flex", gap:4 }}>
-<button className="btn bg bs" onClick={()=>{setEditId(u.id);setEN(u.name);setEE(u.email);}}>✎</button>
+{u.active!==false&&<><button className="btn bg bs" onClick={()=>{setEditId(u.id);setEN(u.name);setEE(u.email);}}>✎</button>
 <button className="btn bg bs" onClick={async()=>{const pw=window.prompt(`Nova senha para ${u.name} (mín. 6):`);if(!pw)return;try{await sb.rpc("reset_user_password",{target_user_id:u.id,new_password:pw},tk);msg("Senha resetada!");}catch(err){msg(err.message,"error");}}}>🔑</button>
-<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar "${u.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:u.id},tk);msg("Desativado");loadU();}catch(err){msg(err.message,"error");}}}>🗑</button></div></div>}
+<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar "${u.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:u.id},tk);msg("Desativado");loadU();}catch(err){msg(err.message,"error");}}}>🗑</button></>}
+{u.active===false&&<button className="btn bg bs" style={{ color:T.g }} onClick={async()=>{if(!window.confirm(`Reativar "${u.name}"?`))return;try{await sb.upd("profiles",{active:true},{id:u.id},tk);msg("Reativado!");loadU();}catch(err){msg(err.message,"error");}}}>♻</button>}
+</div></div>}
 </div>)}</div></>;
 }
 
 function GestorMgr({ tk, msg, domain }) {
 const [gs,setGs]=useState([]); const [n,setN]=useState(""); const [eu,setEu]=useState(""); const [p,setP]=useState("");
 const [editId,setEditId]=useState(null); const [eN,setEN]=useState(""); const [eE,setEE]=useState("");
-useEffect(()=>{loadG();},[]);
-const loadG = async () => setGs(await sb.q("profiles",tk,"role=eq.gestor&active=eq.true&select=*&order=name"));
+const [showAll,setShowAll]=useState(false);
+useEffect(()=>{loadG();},[showAll]);
+const loadG = async () => setGs(await sb.q("profiles",tk,`role=eq.gestor${showAll?"":"&active=eq.true"}&select=*&order=name`));
 const add = async () => { if(!n.trim()||!eu.trim()||!p.trim()) return msg("Preencha tudo","error");
 const email = domain ? `${eu.trim()}@${domain}` : eu.trim();
-if(gs.some(g=>g.name.toLowerCase()===n.trim().toLowerCase())) return msg("Já existe gestor com esse nome","error");
+if(gs.filter(g=>g.active!==false).some(g=>g.name.toLowerCase()===n.trim().toLowerCase())) return msg("Já existe gestor com esse nome","error");
 try{
   await sb.createUser(email,p.trim(),{name:n.trim(),role:"gestor"});
   setN("");setEu("");setP(""); msg("Gestor cadastrado!"); setTimeout(()=>loadG(),1500);
 }catch(err){msg(err.message,"error");} };
 const saveEdit = async (g) => { if(!eN.trim()||!eE.trim()) return msg("Preencha nome e e-mail","error");
-if(gs.some(x=>x.id!==g.id&&x.name.toLowerCase()===eN.trim().toLowerCase())) return msg("Nome já existe","error");
+if(gs.filter(x=>x.active!==false).some(x=>x.id!==g.id&&x.name.toLowerCase()===eN.trim().toLowerCase())) return msg("Nome já existe","error");
 try{
   await sb.upd("profiles",{name:eN.trim()},{id:g.id},tk);
   if(eE.trim().toLowerCase()!==g.email.toLowerCase()) await sb.rpc("update_user_email",{target_user_id:g.id,new_email:eE.trim()},tk);
   setEditId(null); msg("Gestor atualizado"); loadG();
 }catch(err){msg(err.message,"error");} };
 return <><div className="card" style={{ marginBottom:20 }}>
-<div style={{ fontWeight:600, marginBottom:12 }}>Cadastrar Gestor</div>
+<div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}><div style={{ fontWeight:600 }}>Cadastrar Gestor</div><button className="btn bg bs" style={{ fontSize:10, padding:"4px 10px" }} onClick={()=>setShowAll(!showAll)}>{showAll?"👁 Ocultar inativos":"👁 Ver inativos"}</button></div>
 <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
 <input className="inp" placeholder="Nome" style={{ flex:1, minWidth:140 }} value={n} onChange={x=>setN(x.target.value)} />
 <div style={{ display:"flex", flex:1, minWidth:180 }}>
@@ -1063,7 +1067,7 @@ return <><div className="card" style={{ marginBottom:20 }}>
 </div>
 <input className="inp" type="password" placeholder="Senha" style={{ flex:1, minWidth:110 }} value={p} onChange={x=>setP(x.target.value)} />
 <button className="btn bp" onClick={add}>+</button></div></div>
-<div style={{ display:"grid", gap:8 }}>{gs.map(g => <div key={g.id} className="card">
+<div style={{ display:"grid", gap:8 }}>{gs.map(g => <div key={g.id} className="card" style={{ opacity:g.active===false?.5:1 }}>
 {editId===g.id ? <div>
 <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 }}>
 <input className="inp" placeholder="Nome" style={{ flex:1, minWidth:140 }} value={eN} onChange={x=>setEN(x.target.value)} />
@@ -1072,25 +1076,28 @@ return <><div className="card" style={{ marginBottom:20 }}>
 <button className="btn bp bs" onClick={()=>saveEdit(g)}>✓ Salvar</button>
 <button className="btn bg bs" onClick={()=>setEditId(null)}>✕ Cancelar</button></div></div>
 : <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-<div><div style={{ fontWeight:600 }}>{g.name}</div><div style={{ fontSize:12, color:T.t2 }}>{g.email}</div></div>
+<div><div style={{ fontWeight:600 }}>{g.name} {g.active===false&&<span className="badge" style={{ background:T.r+"20", color:T.r, fontSize:9, marginLeft:6 }}>Inativo</span>}</div><div style={{ fontSize:12, color:T.t2 }}>{g.email}</div></div>
 <div style={{ display:"flex", gap:4 }}>
-<button className="btn bg bs" onClick={()=>{setEditId(g.id);setEN(g.name);setEE(g.email);}}>✎</button>
+{g.active!==false&&<><button className="btn bg bs" onClick={()=>{setEditId(g.id);setEN(g.name);setEE(g.email);}}>✎</button>
 <button className="btn bg bs" onClick={async()=>{const pw=window.prompt(`Nova senha para ${g.name} (mín. 6):`);if(!pw)return;try{await sb.rpc("reset_user_password",{target_user_id:g.id,new_password:pw},tk);msg("Senha resetada!");}catch(err){msg(err.message,"error");}}}>🔑</button>
-<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar "${g.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:g.id},tk);msg("Desativado");loadG();}catch(err){msg(err.message,"error");}}}>🗑</button></div></div>}
+<button className="btn bg bs" style={{ color:T.r }} onClick={async()=>{if(!window.confirm(`Desativar "${g.name}"?`))return;try{await sb.upd("profiles",{active:false},{id:g.id},tk);msg("Desativado");loadG();}catch(err){msg(err.message,"error");}}}>🗑</button></>}
+{g.active===false&&<button className="btn bg bs" style={{ color:T.g }} onClick={async()=>{if(!window.confirm(`Reativar "${g.name}"?`))return;try{await sb.upd("profiles",{active:true},{id:g.id},tk);msg("Reativado!");loadG();}catch(err){msg(err.message,"error");}}}>♻</button>}
+</div></div>}
 </div>)}</div></>;
 }
 
 function EquipMgr({ tk, cls, reload, msg }) {
 const [eqs,setEqs]=useState([]); const [px,setPx]=useState(""); const [pl,setPl]=useState(""); const [ci,setCi]=useState("");
 const [editId,setEditId]=useState(null); const [ePx,setEPx]=useState(""); const [ePl,setEPl]=useState(""); const [eCi,setECi]=useState("");
-useEffect(()=>{loadE();},[]);
-const loadE = async () => setEqs(await sb.q("equipment",tk,"active=eq.true&select=*&order=prefix"));
+const [showAll,setShowAll]=useState(false);
+useEffect(()=>{loadE();},[showAll]);
+const loadE = async () => setEqs(await sb.q("equipment",tk,`${showAll?"":"active=eq.true&"}select=*&order=prefix`));
 const add = async () => { if(!px.trim()||!pl.trim()||!ci) return msg("Preencha tudo","error");
 try{await sb.ins("equipment",{prefix:px.trim(),plate:pl.trim().toUpperCase(),class_id:ci},tk); setPx("");setPl("");setCi(""); msg("Equipamento cadastrado!"); loadE(); reload();}catch(e){msg(e.message,"error");} };
 const save = async (id) => { if(!ePx.trim()||!ePl.trim()||!eCi) return; try{await sb.upd("equipment",{prefix:ePx.trim(),plate:ePl.trim().toUpperCase(),class_id:eCi},{id},tk); setEditId(null); msg("Equipamento atualizado"); loadE(); reload();}catch(e){msg(e.message,"error");} };
 const del = async (eq) => { if(!window.confirm(`Desativar "${eq.prefix} — ${eq.plate}"?`)) return; try{await sb.upd("equipment",{active:false},{id:eq.id},tk); msg("Equipamento removido"); loadE(); reload();}catch(e){msg(e.message,"error");} };
 return <><div className="card" style={{ marginBottom:20 }}>
-<div style={{ fontWeight:600, marginBottom:12 }}>Cadastrar Equipamento</div>
+<div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}><div style={{ fontWeight:600 }}>Cadastrar Equipamento</div><button className="btn bg bs" style={{ fontSize:10, padding:"4px 10px" }} onClick={()=>setShowAll(!showAll)}>{showAll?"👁 Ocultar inativos":"👁 Ver inativos"}</button></div>
 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
 <input className="inp" placeholder="Prefixo (ex: CM-001)" style={{ flex:1, minWidth:120 }} value={px} onChange={e=>setPx(e.target.value)} />
 <input className="inp" placeholder="Placa (ex: ABC1D23)" style={{ flex:1, minWidth:120 }} value={pl} onChange={e=>setPl(e.target.value)} />
@@ -1098,17 +1105,19 @@ return <><div className="card" style={{ marginBottom:20 }}>
 <option value="">Classe...</option>{cls.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
 <button className="btn bp" onClick={add}>+</button></div></div>
 <div style={{ display:"grid", gap:8 }}>{eqs.map(eq => { const c=cls.find(x=>x.id===eq.class_id);
-return <div key={eq.id} className="card" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+return <div key={eq.id} className="card" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", opacity:eq.active===false?.5:1 }}>
 {editId===eq.id ? <div style={{ display:"flex", gap:6, flex:1, flexWrap:"wrap", alignItems:"center" }}>
 <input className="inp" style={{ flex:1, minWidth:100 }} value={ePx} onChange={e=>setEPx(e.target.value)} />
 <input className="inp" style={{ flex:1, minWidth:100 }} value={ePl} onChange={e=>setEPl(e.target.value)} />
 <select className="inp" style={{ flex:1, minWidth:120 }} value={eCi} onChange={e=>setECi(e.target.value)}>{cls.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
 <button className="btn bp bs" onClick={()=>save(eq.id)}>✓</button>
 <button className="btn bg bs" onClick={()=>setEditId(null)}>✕</button></div>
-: <><div><div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{eq.prefix} — {eq.plate}</div><div style={{ fontSize:12, color:T.t2 }}>{c?.name}</div></div>
+: <><div><div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{eq.prefix} — {eq.plate} {eq.active===false&&<span className="badge" style={{ background:T.r+"20", color:T.r, fontSize:9, marginLeft:6 }}>Inativo</span>}</div><div style={{ fontSize:12, color:T.t2 }}>{c?.name}</div></div>
 <div style={{ display:"flex", gap:4 }}>
-<button className="btn bg bs" onClick={()=>{setEditId(eq.id);setEPx(eq.prefix);setEPl(eq.plate);setECi(eq.class_id);}}>✎</button>
+{eq.active!==false&&<><button className="btn bg bs" onClick={()=>{setEditId(eq.id);setEPx(eq.prefix);setEPl(eq.plate);setECi(eq.class_id);}}>✎</button>
 <button className="btn bg bs" style={{ color:T.r }} onClick={()=>del(eq)}>🗑</button></div></>}
+</>}
+{eq.active===false&&<button className="btn bg bs" style={{ color:T.g }} onClick={async()=>{if(!window.confirm(`Reativar "${eq.prefix} — ${eq.plate}"?`))return;try{await sb.upd("equipment",{active:true},{id:eq.id},tk);msg("Reativado!");loadE();reload();}catch(e){msg(e.message,"error");}}}>♻</button>}
 </div>;
 })}</div></>;
 }
