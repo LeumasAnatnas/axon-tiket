@@ -4,8 +4,9 @@ import { sb } from "./config.js";
 import { T, KAN, PHR, PHC } from "./theme.js";
 import PwChange from "./PwChange.jsx";
 import DriverDashboard from "./DriverDash.jsx";
+import { cacheGet, cacheSet } from "./offlineStore.js";
 
-function Motorista({ v, sv, msg }) {
+function Motorista({ v, sv, msg, isOnline = true }) {
 const { profile, tk, logout } = useAuth();
 const [eqs, setEqs] = useState([]);
 const [cls, setCls] = useState([]);
@@ -32,14 +33,26 @@ const [evalRating, setEvalRating] = useState(5);
 const [evalNotes, setEvalNotes] = useState("");
 const [evalResps, setEvalResps] = useState([]);
 
+const cachedFetch = async (key, fetcher) => {
+try {
+const data = await fetcher();
+cacheSet(key, data).catch(() => {});
+return data;
+} catch (e) {
+const cached = await cacheGet(key);
+if (cached) return cached;
+throw e;
+}
+};
 const load = async () => {
 try {
+const pid = profile.id;
 const [eq, cl, ch, ri, pe] = await Promise.all([
-sb.q("equipment", tk, "active=eq.true&select=*&order=prefix"),
-sb.q("classes", tk, "active=eq.true&select=*&order=name"),
-sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&order=submitted_at.desc&limit=20`),
-sb.q("checklists", tk, `driver_id=eq.${profile.id}&reinspection_requested=eq.true&status=neq.atendido&select=id,equipment_id,form_id,reinspection_notes`),
-sb.q("v_driver_history", tk, `driver_id=eq.${profile.id}&status=eq.atendido&eval_status=is.null&order=submitted_at.desc`),
+cachedFetch("m_equipment", () => sb.q("equipment", tk, "active=eq.true&select=*&order=prefix")),
+cachedFetch("m_classes", () => sb.q("classes", tk, "active=eq.true&select=*&order=name")),
+cachedFetch(`m_history_${pid}`, () => sb.q("v_driver_history", tk, `driver_id=eq.${pid}&order=submitted_at.desc&limit=20`)),
+cachedFetch(`m_reinsps_${pid}`, () => sb.q("checklists", tk, `driver_id=eq.${pid}&reinspection_requested=eq.true&status=neq.atendido&select=id,equipment_id,form_id,reinspection_notes`)),
+cachedFetch(`m_evals_${pid}`, () => sb.q("v_driver_history", tk, `driver_id=eq.${pid}&status=eq.atendido&eval_status=is.null&order=submitted_at.desc`)),
 ]);
 setEqs(eq); setCls(cl); setHist(ch); setReinsps(ri||[]);
 setPendingEvals((pe||[]).filter(c => c.problem_count > 0 && !c.reinspection_requested));
@@ -60,7 +73,7 @@ const submitEval = async () => {
 const pickEq = async (eq) => {
 setSelEq(eq);
 try {
-const f = await sb.q("forms", tk, `class_id=eq.${eq.class_id}&active=eq.true&select=*`);
+const f = await cachedFetch(`m_forms_${eq.class_id}`, () => sb.q("forms", tk, `class_id=eq.${eq.class_id}&active=eq.true&select=*`));
 setForms(f);
 if (f.length === 1) pickForm(f[0]);
 else if (f.length === 0) msg("Nenhum formulário para esta classe", "error");
@@ -71,7 +84,7 @@ else sv("m_pickf");
 const pickForm = async (f) => {
 setSelForm(f);
 try {
-const it = await sb.q("form_items", tk, `form_id=eq.${f.id}&active=eq.true&select=*&order=sort_order`);
+const it = await cachedFetch(`m_items_${f.id}`, () => sb.q("form_items", tk, `form_id=eq.${f.id}&active=eq.true&select=*&order=sort_order`));
 setItems(it); setResp({}); setPhotos({}); setNotes({}); sv("m_fill");
 } catch (e) { msg("Erro: " + e.message, "error"); }
 };
