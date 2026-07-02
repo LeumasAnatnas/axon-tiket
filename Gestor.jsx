@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "./auth.jsx";
-import { sb } from "./config.js";
+import { sb, SB_URL } from "./config.js";
 import { T, KAN } from "./theme.js";
 import { ClassMgr, FormMgr, UserMgr, GestorMgr, EquipMgr } from "./Managers.jsx";
 import ConfigMgr from "./ConfigMgr.jsx";
@@ -14,6 +14,7 @@ const [cls, setCls] = useState([]);
 const [ld, setLd] = useState(true);
 const [mt, setMt] = useState("classes");
 const [selCard, setSelCard] = useState(null);
+const [viewers, setViewers] = useState({});
 const [moveTo, setMoveTo] = useState(null);
 const [concl, setConcl] = useState("");
 // FIX #2: estado para histórico do card selecionado
@@ -73,6 +74,13 @@ sb.q("classes", tk, "active=eq.true&select=*&order=name"),
 ]);
 setKan(k); setCls(c);
 try { const d = await sb.rpc("get_setting",{p_key:"email_domain"},tk); if(d) setEmailDomain(d); } catch{}
+try { await sb.rpc("cleanup_stale_viewers",{},tk); } catch{}
+try {
+const vw = await sb.q("card_viewers",tk,"select=checklist_id,viewer_id,viewer_name");
+const vmap = {};
+vw.forEach(v => { if(!vmap[v.checklist_id]) vmap[v.checklist_id]=[]; if(v.viewer_id!==profile.id) vmap[v.checklist_id].push(v.viewer_name); });
+setViewers(vmap);
+} catch{}
 } catch (e) { msg("Erro: " + e.message, "error"); }
 finally { setLd(false); }
 };
@@ -110,14 +118,28 @@ setCardResps(r||[]);
 finally { setHistLd(false); }
 };
 
-const closeCard = () => { setSelCard(null); setMoveTo(null); setConcl(""); setCardHistory([]); setCardResps([]); setReinspNotes(""); setShowReinsp(false); };
+const registerViewer = async (cid) => {
+try { await sb.ins("card_viewers",{checklist_id:cid,viewer_id:profile.id,viewer_name:profile.name,viewed_at:new Date().toISOString()},tk).catch(async()=>{
+await sb.upd("card_viewers",{viewed_at:new Date().toISOString()},{checklist_id:cid,viewer_id:profile.id},tk);
+}); } catch{}
+};
+const removeViewer = async (cid) => {
+try { await fetch(`${SB_URL}/rest/v1/card_viewers?checklist_id=eq.${cid}&viewer_id=eq.${profile.id}`,{method:"DELETE",headers:sb.h(tk)}); } catch{}
+};
+const closeCard = () => { if(selCard) removeViewer(selCard.id); setSelCard(null); setMoveTo(null); setConcl(""); setCardHistory([]); setCardResps([]); setReinspNotes(""); setShowReinsp(false); };
 const [reinspNotes, setReinspNotes] = useState("");
 const [showReinsp, setShowReinsp] = useState(false);
+useEffect(() => {
+if(!selCard) return;
+registerViewer(selCard.id);
+const hb = setInterval(() => registerViewer(selCard.id), 25000);
+return () => { clearInterval(hb); removeViewer(selCard.id); };
+}, [selCard?.id]);
 
 const requestReinsp = async (id) => {
 if (!reinspNotes.trim()) return msg("Informe o motivo da re-inspeção", "error");
 try {
-await sb.rpc("request_reinspection", { p_checklist_id: id, p_performed_by: profile.id, p_performed_by_name: profile.name, p_notes: reinspNotes.trim() }, tk);
+await sb.rpc("request_reinspection", { p_checklist_id: id, p_performed_by: profile.id, p_performed_by_name: profile.name, p_notes: reinspNotes.trim(), p_expected_status: selCard.status }, tk);
 msg("Re-inspeção solicitada!"); closeCard(); load();
 } catch (e) { msg("Erro: " + e.message, "error"); }
 };
@@ -125,7 +147,7 @@ msg("Re-inspeção solicitada!"); closeCard(); load();
 const move = async (id, status) => {
 if (status === "atendido" && !concl.trim()) return msg("Justificativa obrigatória", "error");
 try {
-await sb.rpc("move_checklist", { p_checklist_id: id, p_new_status: status, p_performed_by: profile.id, p_performed_by_name: profile.name, p_conclusion_text: status === "atendido" ? concl : null }, tk);
+await sb.rpc("move_checklist", { p_checklist_id: id, p_new_status: status, p_performed_by: profile.id, p_performed_by_name: profile.name, p_conclusion_text: status === "atendido" ? concl : null, p_expected_status: selCard.status }, tk);
 msg(`Movido para ${KAN.find(k => k.id === status)?.label}`);
 closeCard(); load();
 } catch (e) { msg(e.message, "error"); }
@@ -186,6 +208,7 @@ return <div key={col.id} className="kc">
 {probTotal > 0 && <span style={{ fontSize:10, color:T.r, fontWeight:700 }}>⚠{probTotal}</span>}</div>
 {visCards.map(cl => { const urg = cl.problem_count>=3?T.r:cl.problem_count>0?T.y:T.g;
 return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, padding:"8px 10px", marginBottom:5 }} onClick={() => { setSelCard(cl); setMoveTo(null); setConcl(""); loadCardHistory(cl.id); }}>
+{viewers[cl.id]?.length > 0 && <div style={{ fontSize:9, color:T.y, marginBottom:4, display:"flex", alignItems:"center", gap:4 }}>👁 {viewers[cl.id].join(", ")}</div>}
 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
 <span style={{ fontWeight:700, fontSize:12, fontFamily:"'JetBrains Mono'" }}><span style={{ color:T.t3, fontSize:10 }}>#{cl.ticket_number}</span> {cl.equipment_prefix} <span style={{ color:T.t3, fontWeight:400, fontSize:10 }}>— {cl.equipment_plate}</span></span>
 {cl.reinspection_requested && <span style={{ fontSize:8, color:T.y, fontWeight:700, marginLeft:6 }}>{cl.status==="atendido"?"🔄 REINSPEÇÃO ATENDIDA":"🔄 REINSPEÇÃO SOLICITADA"}</span>}
@@ -230,6 +253,7 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 <button style={{ background:"none", border:"none", color:T.t2, cursor:"pointer", fontSize:18 }} onClick={closeCard}>✕</button></div>
 
 <div style={{ marginBottom:4, fontSize:11, color:T.t3, fontFamily:"'JetBrains Mono'" }}>Ticket #{selCard.ticket_number}</div>
+{viewers[selCard.id]?.length > 0 && <div style={{ fontSize:10, color:T.y, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>👁 {viewers[selCard.id].join(", ")} verificando</div>}
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Equipamento</div>
 <div style={{ fontWeight:700, fontFamily:"'JetBrains Mono'" }}>{selCard.equipment_prefix} — {selCard.equipment_plate}</div></div>
 <div style={{ marginBottom:12 }}><div style={{ fontSize:12, color:T.t2 }}>Motorista</div><div style={{ fontWeight:600 }}>{selCard.driver_name}</div></div>
