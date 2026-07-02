@@ -1,10 +1,19 @@
 import { useState, useEffect } from "react";
 import { sb } from "./config.js";
+import { cacheGet, cacheSet } from "./offlineStore.js";
 import { T } from "./theme.js";
 
 function DriverDashboard({ tk, pid }) {
 const [data, setData] = useState(null); const [period, setPeriod] = useState(30); const [ld, setLd] = useState(true);
-useEffect(() => { (async () => { setLd(true); try { const r = await sb.rpc("get_driver_dashboard",{p_driver_id:pid,p_days:period},tk); setData(typeof r==="string"?JSON.parse(r):r); } catch(e) { console.error(e); } finally { setLd(false); } })(); }, [period]);
+useEffect(() => { (async () => { setLd(true); const key = `dd_${pid}_${period}`;
+try {
+const r = await sb.rpc("get_driver_dashboard",{p_driver_id:pid,p_days:period},tk);
+const d = typeof r==="string"?JSON.parse(r):r;
+setData(d); cacheSet(key, d).catch(() => {});
+} catch(e) {
+const cached = await cacheGet(key);
+if (cached) setData(cached); else console.error(e);
+} finally { setLd(false); } })(); }, [period]);
 if (ld) return <div style={{ textAlign:"center", padding:40 }}><div className="sp"/></div>;
 if (!data) return <div style={{ padding:20, color:T.t2 }}>Sem dados</div>;
 const k = data.kpis||{}, st = data.status||{}, ev = data.evals||{};
