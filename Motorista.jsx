@@ -96,20 +96,26 @@ const setPhoto = (id, file) => setPhotos(p => ({ ...p, [id]: file }));
 const setNote = (id, txt) => setNotes(p => ({ ...p, [id]: txt }));
 const canSend = () => items.length > 0 && items.every(i => resp[i.id]) && items.filter(i => i.photo_rule === "mandatory").every(i => photos[i.id]);
 
-const sendOnline = async () => {
-const [ck] = await sb.ins("checklists", { form_id: selForm.id, equipment_id: selEq.id, driver_id: profile.id, status: "triagem" }, tk);
-const resps = [];
+const uploadPhotos = async (items, photos, tempId) => {
+const urls = {};
 for (const i of items) {
-  let photo_url = null;
   if (photos[i.id]) {
     const ext = photos[i.id].name?.split(".").pop() || "jpg";
-    const path = `${ck.id}/${i.id}.${ext}`;
-    photo_url = await sb.upload("checklist-photos", path, photos[i.id], tk);
+    const path = `${tempId}/${i.id}.${ext}`;
+    urls[i.id] = await sb.upload("checklist-photos", path, photos[i.id], tk);
   }
-  resps.push({ checklist_id: ck.id, form_item_id: i.id, answer: resp[i.id], photo_url, notes: notes[i.id] || null });
 }
-await sb.ins("checklist_responses", resps, tk);
-await sb.ins("checklist_history", { checklist_id: ck.id, action: "Checklist enviado", performed_by: profile.id, performed_by_name: profile.name }, tk);
+return urls;
+};
+
+const sendOnline = async () => {
+const tempId = crypto.randomUUID();
+const photoUrls = await uploadPhotos(items, photos, tempId);
+const resps = items.map(i => ({ form_item_id: i.id, answer: resp[i.id], photo_url: photoUrls[i.id] || null, notes: notes[i.id] || null }));
+await sb.rpc("submit_checklist_complete", {
+  p_form_id: selForm.id, p_equipment_id: selEq.id, p_driver_id: profile.id,
+  p_driver_name: profile.name, p_responses: JSON.stringify(resps)
+}, tk);
 const oldRi = reinsps.filter(r => r.equipment_id === selEq.id);
 for (const ri of oldRi) {
   try { await sb.rpc("close_reinspection", { p_old_id: ri.id, p_performed_by: profile.id, p_performed_by_name: profile.name }, tk); } catch {}
@@ -141,19 +147,20 @@ setSyncing(true);
 let ok = 0;
 for (const entry of q) {
   try {
-    const [ck] = await sb.ins("checklists", { form_id: entry.form_id, equipment_id: entry.equipment_id, driver_id: entry.driver_id, status: "triagem" }, tk);
-    const resps = [];
+    const tempId = crypto.randomUUID();
+    const photoUrls = {};
     for (const r of entry.responses) {
-      let photo_url = null;
       if (r.photo) {
         const blob = base64ToBlob(r.photo.base64);
-        const path = `${ck.id}/${r.form_item_id}.${r.photo.ext}`;
-        photo_url = await sb.upload("checklist-photos", path, blob, tk);
+        const path = `${tempId}/${r.form_item_id}.${r.photo.ext}`;
+        photoUrls[r.form_item_id] = await sb.upload("checklist-photos", path, blob, tk);
       }
-      resps.push({ checklist_id: ck.id, form_item_id: r.form_item_id, answer: r.answer, photo_url, notes: r.notes });
     }
-    await sb.ins("checklist_responses", resps, tk);
-    await sb.ins("checklist_history", { checklist_id: ck.id, action: "Checklist enviado (sync offline)", performed_by: entry.driver_id, performed_by_name: entry.driver_name }, tk);
+    const resps = entry.responses.map(r => ({ form_item_id: r.form_item_id, answer: r.answer, photo_url: photoUrls[r.form_item_id] || null, notes: r.notes }));
+    await sb.rpc("submit_checklist_complete", {
+      p_form_id: entry.form_id, p_equipment_id: entry.equipment_id, p_driver_id: entry.driver_id,
+      p_driver_name: entry.driver_name, p_responses: JSON.stringify(resps)
+    }, tk);
     for (const riId of (entry.reinsps || [])) {
       try { await sb.rpc("close_reinspection", { p_old_id: riId, p_performed_by: entry.driver_id, p_performed_by_name: entry.driver_name }, tk); } catch {}
     }
