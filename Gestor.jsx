@@ -93,12 +93,19 @@ const fresh = await sb.q("v_kanban", tk, "order=submitted_at.desc");
 if(lastKanLen.current > 0 && fresh.length > lastKanLen.current) {
 const diff = fresh.length - lastKanLen.current;
 notifyNew(diff);
-setKan(fresh);
 }
+setKan(fresh);
 lastKanLen.current = fresh.length;
+try {
+await sb.rpc("cleanup_stale_viewers",{},tk);
+const vw = await sb.q("card_viewers",tk,"select=checklist_id,viewer_id,viewer_name");
+const vmap = {};
+vw.forEach(v => { if(!vmap[v.checklist_id]) vmap[v.checklist_id]=[]; if(v.viewer_id!==profile.id) vmap[v.checklist_id].push(v.viewer_name); });
+setViewers(vmap);
+} catch{}
 } catch(e){} };
 lastKanLen.current = kan.length;
-const id = setInterval(poll, 30000);
+const id = setInterval(poll, 15000);
 return () => clearInterval(id);
 }, [kan.length]);
 
