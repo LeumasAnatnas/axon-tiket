@@ -4,10 +4,11 @@ import { sb, SB_URL, erroMsg } from "./config.js";
 import { T, KAN } from "./theme.js";
 import { ClassMgr, FormMgr, UserMgr, GestorMgr, EquipMgr } from "./Managers.jsx";
 import ConfigMgr from "./ConfigMgr.jsx";
+import TenantMgr from "./TenantMgr.jsx";
 import Dashboard from "./Dashboard.jsx";
 import PwChange from "./PwChange.jsx";
 
-function Gestor({ v, sv, msg }) {
+function Gestor({ v, sv, msg, tenant }) {
 const { profile, tk, logout } = useAuth();
 const [kan, setKan] = useState([]);
 const [cls, setCls] = useState([]);
@@ -164,7 +165,7 @@ closeCard(); load();
 const fmtDt = (iso) => new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
 
 return <>
-<div className="topbar"><div className="logo">AXON TIKET</div>
+<div className="topbar"><div className="logo">{tenant?.name || "AXON TIKET"}</div>
 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
 <span className="badge" style={{ background:T.ac+"20", color:T.ac }}>{profile.role==="admin"?"Admin":"Gestor"}</span>
 <span style={{ fontSize:13, color:T.t2 }}>{profile.name}</span>
@@ -238,7 +239,7 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 {v === "g_mgmt" && <>
 <h2 style={{ fontSize:20, marginBottom:16 }}>Gerenciamento</h2>
 <div className="tabs">
-{[[profile.role==="admin"&&"gestors","Gestores"],["classes","Classes"],["forms","Formulários"],["users","Motoristas"],["equip","Equipamentos"],[profile.role==="admin"&&"config","⚙ Config"]].filter(([k])=>k).map(([k,l]) =>
+{[[profile.role==="admin"&&"gestors","Gestores"],["classes","Classes"],["forms","Formulários"],["users","Motoristas"],["equip","Equipamentos"],[profile.role==="admin"&&"tenants","🏢 Empresas"],[profile.role==="admin"&&"config","⚙ Config"]].filter(([k])=>k).map(([k,l]) =>
 <button key={k} className={`tab ${mt===k?"on":""}`} onClick={() => setMt(k)}>{l}</button>)}
 </div>
 {mt === "gestors" && profile.role==="admin" && <GestorMgr tk={tk} msg={msg} domain={emailDomain} />}
@@ -246,6 +247,7 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 {mt === "forms" && <FormMgr tk={tk} cls={cls} reload={load} msg={msg} pid={profile.id} />}
 {mt === "users" && <UserMgr tk={tk} msg={msg} domain={emailDomain} />}
 {mt === "equip" && <EquipMgr tk={tk} cls={cls} reload={load} msg={msg} />}
+{mt === "tenants" && profile.role==="admin" && <TenantMgr tk={tk} msg={msg} />}
 {mt === "config" && profile.role==="admin" && <ConfigMgr tk={tk} msg={msg} domain={emailDomain} setDomain={setEmailDomain} />}
 </>}
 {v === "g_pw" && <PwChange msg={msg} />}
