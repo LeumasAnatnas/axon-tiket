@@ -4,7 +4,7 @@ import { sb, erroMsg } from "./config.js";
 import { T, KAN, PHR, PHC } from "./theme.js";
 import PwChange from "./PwChange.jsx";
 import DriverDashboard from "./DriverDash.jsx";
-import { cacheGet, cacheSet } from "./offlineStore.js";
+import { cacheGet, cacheSet, queueAdd, queueGetAll, queueRemove, queueCount, fileToBase64, base64ToBlob } from "./offlineStore.js";
 
 function Motorista({ v, sv, msg, isOnline = true }) {
 const { profile, tk, logout } = useAuth();
@@ -20,6 +20,8 @@ const [resp, setResp] = useState({});
 const [photos, setPhotos] = useState({});
 const [notes, setNotes] = useState({});
 const [sending, setSending] = useState(false);
+const [pendingSync, setPendingSync] = useState(0);
+const [syncing, setSyncing] = useState(false);
 const [filtCls, setFiltCls] = useState("");
 const [eqSearch, setEqSearch] = useState("");
 const [selHist, setSelHist] = useState(null);
@@ -59,7 +61,7 @@ setPendingEvals((pe||[]).filter(c => c.problem_count > 0 && !c.reinspection_requ
 } catch (e) { msg(erroMsg(e), "error"); }
 finally { setLd(false); }
 };
-useEffect(() => { load(); }, []);
+useEffect(() => { load(); queueCount().then(n => setPendingSync(n)); }, []);
 
 const submitEval = async () => {
   if(!evalStatus) return msg("Selecione a classificação","error");
@@ -94,12 +96,8 @@ const setPhoto = (id, file) => setPhotos(p => ({ ...p, [id]: file }));
 const setNote = (id, txt) => setNotes(p => ({ ...p, [id]: txt }));
 const canSend = () => items.length > 0 && items.every(i => resp[i.id]) && items.filter(i => i.photo_rule === "mandatory").every(i => photos[i.id]);
 
-const send = async () => {
-if (!canSend()) return;
-setSending(true);
-try {
+const sendOnline = async () => {
 const [ck] = await sb.ins("checklists", { form_id: selForm.id, equipment_id: selEq.id, driver_id: profile.id, status: "triagem" }, tk);
-// Upload fotos e montar respostas com photo_url
 const resps = [];
 for (const i of items) {
   let photo_url = null;
@@ -112,15 +110,76 @@ for (const i of items) {
 }
 await sb.ins("checklist_responses", resps, tk);
 await sb.ins("checklist_history", { checklist_id: ck.id, action: "Checklist enviado", performed_by: profile.id, performed_by_name: profile.name }, tk);
-// Auto-fechar re-inspeções antigas do mesmo equipamento
 const oldRi = reinsps.filter(r => r.equipment_id === selEq.id);
 for (const ri of oldRi) {
   try { await sb.rpc("close_reinspection", { p_old_id: ri.id, p_performed_by: profile.id, p_performed_by_name: profile.name }, tk); } catch {}
 }
-msg("Checklist enviado com sucesso!"); sv("home"); load();
+msg("Checklist enviado com sucesso!");
+};
+
+const sendOffline = async () => {
+const photoData = {};
+for (const i of items) {
+  if (photos[i.id]) {
+    photoData[i.id] = { base64: await fileToBase64(photos[i.id]), ext: photos[i.id].name?.split(".").pop() || "jpg" };
+  }
+}
+await queueAdd({
+  form_id: selForm.id, equipment_id: selEq.id, driver_id: profile.id, driver_name: profile.name,
+  responses: items.map(i => ({ form_item_id: i.id, answer: resp[i.id], notes: notes[i.id] || null, photo: photoData[i.id] || null })),
+  reinsps: reinsps.filter(r => r.equipment_id === selEq.id).map(r => r.id),
+  queued_at: new Date().toISOString()
+});
+const n = await queueCount(); setPendingSync(n);
+msg("Checklist salvo! Será enviado ao reconectar.");
+};
+
+const syncQueue = async () => {
+const q = await queueGetAll();
+if (!q.length) return;
+setSyncing(true);
+let ok = 0;
+for (const entry of q) {
+  try {
+    const [ck] = await sb.ins("checklists", { form_id: entry.form_id, equipment_id: entry.equipment_id, driver_id: entry.driver_id, status: "triagem" }, tk);
+    const resps = [];
+    for (const r of entry.responses) {
+      let photo_url = null;
+      if (r.photo) {
+        const blob = base64ToBlob(r.photo.base64);
+        const path = `${ck.id}/${r.form_item_id}.${r.photo.ext}`;
+        photo_url = await sb.upload("checklist-photos", path, blob, tk);
+      }
+      resps.push({ checklist_id: ck.id, form_item_id: r.form_item_id, answer: r.answer, photo_url, notes: r.notes });
+    }
+    await sb.ins("checklist_responses", resps, tk);
+    await sb.ins("checklist_history", { checklist_id: ck.id, action: "Checklist enviado (sync offline)", performed_by: entry.driver_id, performed_by_name: entry.driver_name }, tk);
+    for (const riId of (entry.reinsps || [])) {
+      try { await sb.rpc("close_reinspection", { p_old_id: riId, p_performed_by: entry.driver_id, p_performed_by_name: entry.driver_name }, tk); } catch {}
+    }
+    await queueRemove(entry.id);
+    ok++;
+  } catch { break; }
+}
+const remaining = await queueCount(); setPendingSync(remaining);
+if (ok > 0) { msg(`${ok} checklist${ok>1?"s":""} sincronizado${ok>1?"s":""}!`); load(); }
+setSyncing(false);
+};
+
+const send = async () => {
+if (!canSend()) return;
+setSending(true);
+try {
+  if (navigator.onLine) { await sendOnline(); } else { await sendOffline(); }
+  sv("home"); load();
 } catch (e) { msg(erroMsg(e), "error"); }
 finally { setSending(false); }
 };
+
+// Auto-sync quando reconecta
+useEffect(() => {
+if (isOnline && !syncing) { syncQueue(); }
+}, [isOnline]);
 
 const loadHistDetail = async (cl) => {
 setSelHist(cl); setHistRespLd(true); setHistResps([]);
@@ -139,6 +198,11 @@ return <>
 {v === "home" && <>
 <h2 style={{ fontSize: 20, marginBottom: 4 }}>Olá, {profile.name.split(" ")[0]} 👋</h2>
 <p style={{ color: T.t2, fontSize: 14, marginBottom: 16 }}>Selecione um equipamento para iniciar</p>
+{pendingSync > 0 && <div style={{ marginBottom:14, padding:"10px 14px", background:T.y+"18", border:`1px solid ${T.y}40`, borderRadius:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+<div><div style={{ fontSize:12, fontWeight:700, color:T.y }}>{syncing ? "⏳" : "📤"} {pendingSync} checklist{pendingSync>1?"s":""} pendente{pendingSync>1?"s":""}</div>
+<div style={{ fontSize:10, color:T.t3 }}>{syncing ? "Sincronizando..." : "Aguardando conexão"}</div></div>
+{!syncing && navigator.onLine && <button className="btn bp bs" style={{ fontSize:10 }} onClick={syncQueue}>Sincronizar</button>}
+</div>}
 {/* Avaliações pendentes */}
 {pendingEvals.length > 0 && <div style={{ marginBottom:16 }}>
 <div style={{ fontSize:12, fontWeight:700, color:T.p, textTransform:"uppercase", letterSpacing:.5, marginBottom:8 }}>⭐ Avaliações pendentes ({pendingEvals.length})</div>
