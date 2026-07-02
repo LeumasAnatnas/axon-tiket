@@ -61,6 +61,25 @@ return r.json();
 };
 
 
+// --- Tenant helpers (5.1.3) ---
+function getTenantSlug() {
+const m = window.location.pathname.match(/^\/t\/([^/]+)/);
+return m ? m[1] : null;
+}
+
+async function fetchTenant(slug) {
+const params = slug
+  ? `slug=eq.${slug}&active=eq.true&limit=1`
+  : `active=eq.true&order=created_at&limit=1`;
+const r = await fetch(`${SB_URL}/rest/v1/tenants?${params}&select=id,slug,name,logo_url,primary_color`, {
+  headers: { apikey: SB_KEY }
+});
+if (!r.ok) return null;
+const data = await r.json();
+return data[0] || null;
+}
+
+
 function erroMsg(e) {
 const m = e?.message || String(e);
 if (m.includes("fetch") || m.includes("network") || m.includes("NetworkError")) return "Sem conexão com o servidor";
@@ -68,4 +87,4 @@ if (m.includes("JWT expired")) return "Sessão expirada. Faça login novamente";
 return m;
 }
 
-export { SB_URL, SB_KEY, sb, erroMsg };
+export { SB_URL, SB_KEY, sb, erroMsg, getTenantSlug, fetchTenant };

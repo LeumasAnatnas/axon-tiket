@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/t/:slug", "destination": "/" },
+    { "source": "/t/:slug/(.*)", "destination": "/" }
+  ]
+}
