@@ -6,7 +6,7 @@ import PwChange from "./PwChange.jsx";
 import DriverDashboard from "./DriverDash.jsx";
 import { cacheGet, cacheSet, queueAdd, queueGetAll, queueRemove, queueCount, fileToBase64, base64ToBlob } from "./offlineStore.js";
 
-function Motorista({ v, sv, msg, isOnline = true }) {
+function Motorista({ v, sv, msg, isOnline = true, tenant }) {
 const { profile, tk, logout } = useAuth();
 const [eqs, setEqs] = useState([]);
 const [cls, setCls] = useState([]);
@@ -196,7 +196,7 @@ finally { setHistRespLd(false); }
 };
 
 return <>
-<div className="topbar"><div className="logo">AXON TIKET</div>
+<div className="topbar"><div className="logo">{tenant?.name || "AXON TIKET"}</div>
 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
 <span style={{ fontSize: 13, color: T.t2 }}>{profile.name}</span>
 <button className="btn bg bs" onClick={logout}>Sair</button></div></div>

@@ -242,10 +242,10 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 {[[profile.role==="admin"&&"gestors","Gestores"],["classes","Classes"],["forms","Formulários"],["users","Motoristas"],["equip","Equipamentos"],[profile.role==="admin"&&"tenants","🏢 Empresas"],[profile.role==="admin"&&"config","⚙ Config"]].filter(([k])=>k).map(([k,l]) =>
 <button key={k} className={`tab ${mt===k?"on":""}`} onClick={() => setMt(k)}>{l}</button>)}
 </div>
-{mt === "gestors" && profile.role==="admin" && <GestorMgr tk={tk} msg={msg} domain={emailDomain} />}
+{mt === "gestors" && profile.role==="admin" && <GestorMgr tk={tk} msg={msg} domain={emailDomain} tenant={tenant} />}
 {mt === "classes" && <ClassMgr tk={tk} cls={cls} reload={load} msg={msg} />}
 {mt === "forms" && <FormMgr tk={tk} cls={cls} reload={load} msg={msg} pid={profile.id} />}
-{mt === "users" && <UserMgr tk={tk} msg={msg} domain={emailDomain} />}
+{mt === "users" && <UserMgr tk={tk} msg={msg} domain={emailDomain} tenant={tenant} />}
 {mt === "equip" && <EquipMgr tk={tk} cls={cls} reload={load} msg={msg} />}
 {mt === "tenants" && profile.role==="admin" && <TenantMgr tk={tk} msg={msg} />}
 {mt === "config" && profile.role==="admin" && <ConfigMgr tk={tk} msg={msg} domain={emailDomain} setDomain={setEmailDomain} />}

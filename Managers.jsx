@@ -85,7 +85,7 @@ return <div key={cl.id} style={{ marginBottom:24 }}>
 </div>; })}</>;
 }
 
-function UserMgr({ tk, msg, domain }) {
+function UserMgr({ tk, msg, domain, tenant }) {
 const [us,setUs]=useState([]); const [n,setN]=useState(""); const [eu,setEu]=useState(""); const [p,setP]=useState("");
 const [editId,setEditId]=useState(null); const [eN,setEN]=useState(""); const [eE,setEE]=useState("");
 const [showAll,setShowAll]=useState(false);
@@ -95,7 +95,7 @@ const add = async () => { if(!n.trim()||!eu.trim()||!p.trim()) return msg("Preen
 const email = domain ? `${eu.trim()}@${domain}` : eu.trim();
 if(us.filter(u=>u.active!==false).some(u=>u.name.toLowerCase()===n.trim().toLowerCase())) return msg("Já existe motorista com esse nome","error");
 try{
-  await sb.createUser(email,p.trim(),{name:n.trim(),role:"motorista"});
+  await sb.createUser(email,p.trim(),{name:n.trim(),role:"motorista",tenant_id:tenant?.id||null});
   setN("");setEu("");setP(""); msg("Motorista cadastrado!"); setTimeout(()=>loadU(),1500);
 }catch(err){msg(err.message,"error");} };
 const saveEdit = async (u) => { if(!eN.trim()||!eE.trim()) return msg("Preencha nome e e-mail","error");
@@ -134,7 +134,7 @@ return <><div className="card" style={{ marginBottom:20 }}>
 </div>)}</div></>;
 }
 
-function GestorMgr({ tk, msg, domain }) {
+function GestorMgr({ tk, msg, domain, tenant }) {
 const [gs,setGs]=useState([]); const [n,setN]=useState(""); const [eu,setEu]=useState(""); const [p,setP]=useState("");
 const [editId,setEditId]=useState(null); const [eN,setEN]=useState(""); const [eE,setEE]=useState("");
 const [showAll,setShowAll]=useState(false);
@@ -144,7 +144,7 @@ const add = async () => { if(!n.trim()||!eu.trim()||!p.trim()) return msg("Preen
 const email = domain ? `${eu.trim()}@${domain}` : eu.trim();
 if(gs.filter(g=>g.active!==false).some(g=>g.name.toLowerCase()===n.trim().toLowerCase())) return msg("Já existe gestor com esse nome","error");
 try{
-  await sb.createUser(email,p.trim(),{name:n.trim(),role:"gestor"});
+  await sb.createUser(email,p.trim(),{name:n.trim(),role:"gestor",tenant_id:tenant?.id||null});
   setN("");setEu("");setP(""); msg("Gestor cadastrado!"); setTimeout(()=>loadG(),1500);
 }catch(err){msg(err.message,"error");} };
 const saveEdit = async (g) => { if(!eN.trim()||!eE.trim()) return msg("Preencha nome e e-mail","error");
