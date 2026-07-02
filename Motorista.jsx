@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "./auth.jsx";
-import { sb } from "./config.js";
+import { sb, erroMsg } from "./config.js";
 import { T, KAN, PHR, PHC } from "./theme.js";
 import PwChange from "./PwChange.jsx";
 import DriverDashboard from "./DriverDash.jsx";
@@ -56,7 +56,7 @@ cachedFetch(`m_evals_${pid}`, () => sb.q("v_driver_history", tk, `driver_id=eq.$
 ]);
 setEqs(eq); setCls(cl); setHist(ch); setReinsps(ri||[]);
 setPendingEvals((pe||[]).filter(c => c.problem_count > 0 && !c.reinspection_requested));
-} catch (e) { msg("Erro: " + e.message, "error"); }
+} catch (e) { msg(erroMsg(e), "error"); }
 finally { setLd(false); }
 };
 useEffect(() => { load(); }, []);
@@ -78,7 +78,7 @@ setForms(f);
 if (f.length === 1) pickForm(f[0]);
 else if (f.length === 0) msg("Nenhum formulário para esta classe", "error");
 else sv("m_pickf");
-} catch (e) { msg("Erro: " + e.message, "error"); }
+} catch (e) { msg(erroMsg(e), "error"); }
 };
 
 const pickForm = async (f) => {
@@ -86,7 +86,7 @@ setSelForm(f);
 try {
 const it = await cachedFetch(`m_items_${f.id}`, () => sb.q("form_items", tk, `form_id=eq.${f.id}&active=eq.true&select=*&order=sort_order`));
 setItems(it); setResp({}); setPhotos({}); setNotes({}); sv("m_fill");
-} catch (e) { msg("Erro: " + e.message, "error"); }
+} catch (e) { msg(erroMsg(e), "error"); }
 };
 
 const setR = (id, val) => setResp(p => ({ ...p, [id]: val }));
@@ -118,7 +118,7 @@ for (const ri of oldRi) {
   try { await sb.rpc("close_reinspection", { p_old_id: ri.id, p_performed_by: profile.id, p_performed_by_name: profile.name }, tk); } catch {}
 }
 msg("Checklist enviado com sucesso!"); sv("home"); load();
-} catch (e) { msg("Erro: " + e.message, "error"); }
+} catch (e) { msg(erroMsg(e), "error"); }
 finally { setSending(false); }
 };
 

@@ -19,7 +19,7 @@ const go = async () => {
 if (!e || !p) return msg("Preencha e-mail e senha", "error");
 setLd(true);
 try { await login(e, p); msg("Login realizado!"); }
-catch (err) { msg(err.message, "error"); }
+catch (err) { const m = err.message?.includes("fetch") ? "Sem conexão com o servidor" : err.message; msg(m, "error"); }
 finally { setLd(false); }
 };
 

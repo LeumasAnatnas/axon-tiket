@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "./auth.jsx";
-import { sb, SB_URL } from "./config.js";
+import { sb, SB_URL, erroMsg } from "./config.js";
 import { T, KAN } from "./theme.js";
 import { ClassMgr, FormMgr, UserMgr, GestorMgr, EquipMgr } from "./Managers.jsx";
 import ConfigMgr from "./ConfigMgr.jsx";
@@ -81,7 +81,7 @@ const vmap = {};
 vw.forEach(v => { if(!vmap[v.checklist_id]) vmap[v.checklist_id]=[]; if(v.viewer_id!==profile.id) vmap[v.checklist_id].push(v.viewer_name); });
 setViewers(vmap);
 } catch{}
-} catch (e) { msg("Erro: " + e.message, "error"); }
+} catch (e) { msg(erroMsg(e), "error"); }
 finally { setLd(false); }
 };
 useEffect(() => { load(); if(Notification.permission==="default") Notification.requestPermission(); }, []);
@@ -148,7 +148,7 @@ if (!reinspNotes.trim()) return msg("Informe o motivo da re-inspeção", "error"
 try {
 await sb.rpc("request_reinspection", { p_checklist_id: id, p_performed_by: profile.id, p_performed_by_name: profile.name, p_notes: reinspNotes.trim(), p_expected_status: selCard.status }, tk);
 msg("Re-inspeção solicitada!"); closeCard(); load();
-} catch (e) { msg("Erro: " + e.message, "error"); }
+} catch (e) { msg(erroMsg(e), "error"); }
 };
 
 const move = async (id, status) => {
@@ -157,7 +157,7 @@ try {
 await sb.rpc("move_checklist", { p_checklist_id: id, p_new_status: status, p_performed_by: profile.id, p_performed_by_name: profile.name, p_conclusion_text: status === "atendido" ? concl : null, p_expected_status: selCard.status }, tk);
 msg(`Movido para ${KAN.find(k => k.id === status)?.label}`);
 closeCard(); load();
-} catch (e) { msg(e.message, "error"); }
+} catch (e) { msg(erroMsg(e), "error"); }
 };
 
 // Helper: formata data/hora pt-BR compacto

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, createContext, useContext } from "react";
 import { sb, SB_URL, SB_KEY } from "./config.js";
+import { cacheGet, cacheSet } from "./offlineStore.js";
 
 const Ctx = createContext(null);
 function AuthProvider({ children }) {
@@ -31,9 +32,16 @@ loadProfile(p.tk, p.uid);
 const loadProfile = async (tk, uid) => {
 try {
 const ps = await sb.q("profiles", tk, `id=eq.${uid}&select=*`);
-if (ps.length > 0) setProfile(ps[0]);
-else throw new Error("Perfil não encontrado");
-} catch { localStorage.removeItem("axon_s"); setSession(null); }
+if (ps.length > 0) { setProfile(ps[0]); cacheSet("profile_" + uid, ps[0]).catch(() => {}); }
+else throw new Error("not_found");
+} catch (e) {
+if (e.message === "not_found") { localStorage.removeItem("axon_s"); setSession(null); }
+else {
+const cached = await cacheGet("profile_" + uid);
+if (cached) { setProfile(cached); }
+else { localStorage.removeItem("axon_s"); setSession(null); }
+}
+}
 finally { setLoading(false); }
 };
 
@@ -46,7 +54,7 @@ const d = await sb.refresh(session.rt);
 const s = { tk: d.access_token, rt: d.refresh_token, uid: d.user.id };
 localStorage.setItem("axon_s", JSON.stringify(s));
 setSession(s);
-} catch { localStorage.removeItem("axon_s"); setSession(null); setProfile(null); }
+} catch (e) { if (navigator.onLine) { localStorage.removeItem("axon_s"); setSession(null); setProfile(null); } }
 };
 const id = setInterval(doRefresh, 50 * 60 * 1000);
 return () => clearInterval(id);

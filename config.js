@@ -61,4 +61,11 @@ return r.json();
 };
 
 
-export { SB_URL, SB_KEY, sb };
+function erroMsg(e) {
+const m = e?.message || String(e);
+if (m.includes("fetch") || m.includes("network") || m.includes("NetworkError")) return "Sem conexão com o servidor";
+if (m.includes("JWT expired")) return "Sessão expirada. Faça login novamente";
+return m;
+}
+
+export { SB_URL, SB_KEY, sb, erroMsg };
