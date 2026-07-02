@@ -239,16 +239,16 @@ return <div key={cl.id} className="kk" style={{ borderLeft:`3px solid ${urg}`, p
 {v === "g_mgmt" && <>
 <h2 style={{ fontSize:20, marginBottom:16 }}>Gerenciamento</h2>
 <div className="tabs">
-{[[profile.role==="admin"&&"gestors","Gestores"],["classes","Classes"],["forms","Formulários"],["users","Motoristas"],["equip","Equipamentos"],[profile.role==="admin"&&"tenants","🏢 Empresas"],[profile.role==="admin"&&"config","⚙ Config"]].filter(([k])=>k).map(([k,l]) =>
+{[[profile.role==="admin"&&"gestors","Gestores"],[profile.role==="superadmin"&&"gestors","Gestores"],["classes","Classes"],["forms","Formulários"],["users","Motoristas"],["equip","Equipamentos"],[profile.role==="superadmin"&&"tenants","🏢 Empresas"],[(profile.role==="admin"||profile.role==="superadmin")&&"config","⚙ Config"]].filter(([k])=>k).map(([k,l]) =>
 <button key={k} className={`tab ${mt===k?"on":""}`} onClick={() => setMt(k)}>{l}</button>)}
 </div>
-{mt === "gestors" && profile.role==="admin" && <GestorMgr tk={tk} msg={msg} domain={emailDomain} tenant={tenant} />}
+{mt === "gestors" && (profile.role==="admin"||profile.role==="superadmin") && <GestorMgr tk={tk} msg={msg} domain={emailDomain} tenant={tenant} />}
 {mt === "classes" && <ClassMgr tk={tk} cls={cls} reload={load} msg={msg} />}
 {mt === "forms" && <FormMgr tk={tk} cls={cls} reload={load} msg={msg} pid={profile.id} />}
 {mt === "users" && <UserMgr tk={tk} msg={msg} domain={emailDomain} tenant={tenant} />}
 {mt === "equip" && <EquipMgr tk={tk} cls={cls} reload={load} msg={msg} />}
-{mt === "tenants" && profile.role==="admin" && <TenantMgr tk={tk} msg={msg} />}
-{mt === "config" && profile.role==="admin" && <ConfigMgr tk={tk} msg={msg} domain={emailDomain} setDomain={setEmailDomain} />}
+{mt === "tenants" && profile.role==="superadmin" && <TenantMgr tk={tk} msg={msg} />}
+{mt === "config" && (profile.role==="admin"||profile.role==="superadmin") && <ConfigMgr tk={tk} msg={msg} domain={emailDomain} setDomain={setEmailDomain} />}
 </>}
 {v === "g_pw" && <PwChange msg={msg} />}
 {v === "g_dash" && <Dashboard tk={tk} />}
